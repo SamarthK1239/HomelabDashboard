@@ -143,6 +143,10 @@ export function LlamaCard({ result, refreshSeconds }: CardProps) {
   const busySlots = num(data.busy_slots) ?? num(slots.busy);
   const totalSlots = num(data.total_slots) ?? num(slots.total);
   const slotList = list(slots.slots);
+  // /slots is skipped on purpose while the model is idle or asleep, because
+  // reading it reloads the weights into VRAM. Say so rather than looking broken.
+  const slotsSkipped = slots.polled === false;
+  const slotsReason = text(slots.reason);
 
   // Prefer the real slot list; fall back to synthesising pips from the counts
   // so the activity row still works on a server with /slots disabled.
@@ -253,6 +257,11 @@ export function LlamaCard({ result, refreshSeconds }: CardProps) {
                 />
               ))}
             </ul>
+          ) : null}
+          {slotsSkipped ? (
+            <p className="ai-note ai-note--muted">
+              counts from /metrics{slotsReason ? ` — per-slot detail paused: ${slotsReason}` : null}
+            </p>
           ) : null}
         </div>
 

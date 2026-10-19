@@ -19,6 +19,29 @@ rather than CRITICAL.
 not enabled. That is treated as a reportable capability gap with a stated fix,
 never as an error -- and it is re-probed occasionally so that enabling the flag
 starts producing throughput numbers with no code change.
+
+Why ``/slots`` is not polled on a schedule
+------------------------------------------
+
+``/slots`` is not a passive read: on a server started with
+``--sleep-idle-seconds`` it counts as activity. Polling it wakes a sleeping
+model -- measured here, a single request pulled a 27B model back into VRAM
+(363 MiB -> 15.8 GiB) and held it there -- so a dashboard refreshing every few
+seconds would pin the weights in VRAM forever and silently defeat the server's
+idle unloading. ``/health``, ``/props``, ``/v1/models`` and ``/metrics`` were
+all measured as safe: the model stayed asleep across sustained polling of each.
+
+So the slot counts come from the safe endpoints instead:
+``llamacpp:requests_processing`` (``/metrics``) gives how many slots are busy
+and ``total_slots`` (``/props``) gives how many exist. ``/slots`` is then
+consulted only for its richer per-slot detail, and only while a request is
+already in flight -- at which point the model is awake and working anyway, so
+reading it costs nothing. See :meth:`LlamaCollector._slots_decision`.
+
+Note that the cumulative counters (``tokens_predicted_total`` and friends) only
+advance when a request *finishes*; they sit still for the whole of a long
+generation. ``requests_processing`` is a gauge and moves the instant work
+starts, which is why it, and not counter movement, is the activity signal.
 """
 
 from __future__ import annotations
@@ -48,6 +71,16 @@ _METRIC_HISTORY_KEYS = (
 )
 
 _METRICS_HINT = "restart the llama.cpp server with --metrics to enable this endpoint"
+
+#: Gauge reporting how many requests are being processed right now. Unlike the
+#: cumulative counters, which only move once a request completes, this moves as
+#: soon as work starts -- so it is the signal for "is the server busy".
+_BUSY_SLOTS_METRIC = "llamacpp:requests_processing"
+
+#: How ``/slots`` may be polled. ``auto`` reads it only while a request is in
+#: flight (see the module docstring); ``always`` restores unconditional polling
+#: for servers that do not use ``--sleep-idle-seconds``; ``never`` disables it.
+_SLOTS_POLICIES = ("auto", "always", "never")
 
 
 def _parse_prometheus(text: str) -> dict[str, float]:
@@ -133,6 +166,8 @@ class LlamaCollector(Collector):
         container = section.get("container", "llama-server")
         self.container_name = str(container).strip() if container else ""
         self.timeout = float(section.get("timeout", 3.0) or 3.0)
+        policy = str(section.get("slots_policy", "auto") or "auto").strip().lower()
+        self.slots_policy = policy if policy in _SLOTS_POLICIES else "auto"
 
         self._client: httpx.AsyncClient | None = None
         self._docker_client: Any = None
@@ -425,24 +460,88 @@ class LlamaCollector(Collector):
 
     # ------------------------------------------------------------- collect
 
+    def _slots_decision(
+        self, props: dict[str, Any], metrics: dict[str, Any]
+    ) -> tuple[bool, str]:
+        """Decide whether ``/slots`` may be read this round, and say why.
+
+        Reading ``/slots`` wakes a sleeping model, so the default policy only
+        allows it when the server is demonstrably already busy. The reason is
+        returned alongside the verdict and surfaced in the payload, so the card
+        can explain why per-slot detail is absent rather than looking broken.
+        """
+        if self.slots_policy == "never":
+            return False, "per-slot detail is disabled (slots_policy = never)"
+        if self.slots_policy == "always":
+            return True, "slots_policy = always"
+
+        if props.get("is_sleeping") is True:
+            return False, "model is sleeping; reading /slots would reload it into VRAM"
+        if not metrics.get("available"):
+            return False, (
+                "cannot tell whether the server is busy without /metrics, so /slots is "
+                "left alone to avoid pinning the model in VRAM — start the server with "
+                "--metrics, or set slots_policy = \"always\" if it does not use "
+                "--sleep-idle-seconds"
+            )
+
+        busy = _as_float((metrics.get("values") or {}).get(_BUSY_SLOTS_METRIC))
+        if busy is None:
+            return False, "/metrics did not report requests_processing"
+        if busy > 0:
+            return True, "a request is in flight, so the model is already awake"
+        return False, "server is idle; leaving its sleep timer alone"
+
     async def collect(self) -> dict[str, Any]:
+        # Only the endpoints that are safe to poll on a timer. /slots is
+        # deliberately excluded here and decided on afterwards.
         results = await asyncio.gather(
             self._probe_health(),
             self._probe_props(),
             self._probe_models(),
-            self._probe_slots(),
             self._probe_metrics(),
             self._probe_container(),
             return_exceptions=True,
         )
-        health, props, models, slots, metrics, container = (
+        health, props, models, metrics, container = (
             r if isinstance(r, dict) else {"available": False, "error": f"{type(r).__name__}: {r}"}
             for r in results
         )
 
+        may_poll, slots_reason = self._slots_decision(props, metrics)
+        if may_poll:
+            try:
+                slots = await self._probe_slots()
+            except Exception as exc:  # isolation: /slots must not fail the sample
+                slots = {"available": False, "error": f"{type(exc).__name__}: {exc}"}
+            slots["polled"] = True
+        else:
+            slots = {"available": False, "polled": False, "reason": slots_reason}
+        slots["policy"] = self.slots_policy
+
+        metric_values = (metrics.get("values") or {}) if metrics.get("available") else {}
         total_slots = slots.get("total") if slots.get("available") else props.get("total_slots")
-        busy = slots.get("busy") if slots.get("available") else None
-        idle = slots.get("idle") if slots.get("available") else None
+
+        # Prefer /slots when it was read, since it counts slots directly;
+        # otherwise derive the same numbers from the endpoints that are safe to
+        # poll, so the headline "n busy / m" survives without waking anything.
+        if slots.get("available"):
+            busy = slots.get("busy")
+            idle = slots.get("idle")
+            slot_source = "slots"
+        else:
+            metric_busy = _as_float(metric_values.get(_BUSY_SLOTS_METRIC))
+            if metric_busy is None:
+                busy = idle = None
+                slot_source = None
+            else:
+                busy = int(metric_busy)
+                idle = (
+                    max(0, int(total_slots) - busy)
+                    if isinstance(total_slots, (int, float))
+                    else None
+                )
+                slot_source = "metrics"
 
         model_name = props.get("model_alias")
         if not model_name:
@@ -458,6 +557,7 @@ class LlamaCollector(Collector):
             "busy_slots": busy,
             "idle_slots": idle,
             "total_slots": total_slots,
+            "slot_source": slot_source,
             "model": {
                 "name": model_name,
                 "path": props.get("model_path"),

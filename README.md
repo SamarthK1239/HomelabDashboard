@@ -126,6 +126,39 @@ with the reason — it does not treat it as a failure. Add `--metrics` to the
 container's arguments and the extra series appear on their own, no code or config
 change needed.
 
+### Why per-slot detail comes and goes
+
+If you run llama-server with `--sleep-idle-seconds`, it offloads the model from
+VRAM after an idle period. Reading `/slots` defeats that: measured on this
+server, a single poll against a sleeping model took VRAM from 363 MiB to
+15.8 GiB — it does not merely reset the idle timer, it reloads the weights.
+Polling it on a timer therefore pins the model in VRAM permanently.
+
+So the collector only reads `/slots` when the server is *already* awake and
+working. It decides from two endpoints that are safe to poll (both verified not
+to wake a sleeping model): `/props`, which reports `is_sleeping`, and the
+`llamacpp:requests_processing` gauge from `/metrics`.
+
+The gauge matters specifically. llama.cpp's `*_total` metrics are cumulative
+counters that only advance when a request *finishes*, so they sit at zero
+throughout a long generation — gating on "did the counters change" would go
+blind during exactly the work you want to watch. The gauge moves the moment a
+request is accepted.
+
+Busy/idle counts keep rendering either way, derived from `/metrics` plus the
+`total_slots` in `/props`; only the per-slot pips go quiet, and the card says
+why. Tune with:
+
+```toml
+[llama]
+slots_policy = "auto"   # read /slots only while a request is in flight
+# slots_policy = "always"  # poll unconditionally — fine if you don't use --sleep-idle-seconds
+# slots_policy = "never"   # never read /slots
+```
+
+Use `"always"` only if your server has no idle-sleep configured; there is
+nothing to protect in that case and you get per-slot detail at all times.
+
 ## API
 
 The backend is usable on its own if you want to script against it.

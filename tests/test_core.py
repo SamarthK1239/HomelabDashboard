@@ -22,6 +22,7 @@ from backend.collectors.base import (
     worst,
 )
 from backend.collectors.gpu import _is_throttled
+from backend.collectors.llama import LlamaCollector
 from backend.config import Config, load_config
 from backend.sampler import Sampler
 from backend.store import Store
@@ -245,3 +246,80 @@ def test_power_cap_is_not_believed_without_usable_power_readings() -> None:
 
 def test_unknown_throttle_reasons_stay_unknown() -> None:
     assert _is_throttled(None, 33.0, 420.0) is None
+
+
+# --- llama.cpp /slots polling policy ---------------------------------------
+#
+# Reading /slots wakes a sleeping model: measured on a live server, the first
+# poll took VRAM from 363 MiB to 15.8 GiB. These pin down when the collector is
+# allowed to touch it.
+
+
+def _llama(policy: str = "auto") -> LlamaCollector:
+    config = Config({"llama": {"slots_policy": policy}})
+    return LlamaCollector(config)
+
+
+def _metrics(busy: float | None) -> dict[str, Any]:
+    if busy is None:
+        return {"available": True, "values": {}}
+    return {"available": True, "values": {"llamacpp:requests_processing": busy}}
+
+
+def test_slots_skipped_while_the_model_sleeps() -> None:
+    allowed, reason = _llama()._slots_decision({"is_sleeping": True}, _metrics(0))
+    assert allowed is False
+    assert "sleeping" in reason
+
+
+def test_slots_polled_when_a_request_is_in_flight() -> None:
+    # Busy implies already awake, so there is no sleep timer left to disturb.
+    allowed, _ = _llama()._slots_decision({"is_sleeping": False}, _metrics(1))
+    assert allowed is True
+
+
+def test_slots_skipped_when_awake_but_idle() -> None:
+    # The case that used to pin the model in VRAM forever.
+    allowed, reason = _llama()._slots_decision({"is_sleeping": False}, _metrics(0))
+    assert allowed is False
+    assert "idle" in reason
+
+
+def test_a_sleeping_model_is_never_woken_even_if_metrics_look_busy() -> None:
+    allowed, _ = _llama()._slots_decision({"is_sleeping": True}, _metrics(1))
+    assert allowed is False
+
+
+def test_slots_skipped_when_metrics_are_unavailable() -> None:
+    # Without /metrics there is no safe way to tell busy from idle, so the
+    # collector must assume idle rather than risk pinning the model.
+    allowed, reason = _llama()._slots_decision({}, {"available": False})
+    assert allowed is False
+    assert "--metrics" in reason
+
+
+def test_slots_skipped_when_the_busy_gauge_is_missing() -> None:
+    allowed, _ = _llama()._slots_decision({}, _metrics(None))
+    assert allowed is False
+
+
+def test_unknown_sleep_state_still_allows_polling_when_busy() -> None:
+    # Older builds do not report is_sleeping; the busy gauge alone is enough.
+    allowed, _ = _llama()._slots_decision({}, _metrics(2))
+    assert allowed is True
+
+
+def test_always_policy_polls_slots_even_against_a_sleeping_model() -> None:
+    allowed, reason = _llama("always")._slots_decision({"is_sleeping": True}, _metrics(0))
+    assert allowed is True
+    assert "always" in reason
+
+
+def test_never_policy_skips_slots_even_when_busy() -> None:
+    allowed, reason = _llama("never")._slots_decision({"is_sleeping": False}, _metrics(5))
+    assert allowed is False
+    assert "never" in reason
+
+
+def test_invalid_policy_falls_back_to_auto() -> None:
+    assert _llama("nonsense").slots_policy == "auto"

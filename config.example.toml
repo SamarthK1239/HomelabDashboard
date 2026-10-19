@@ -42,6 +42,20 @@ url = "http://127.0.0.1:8090"
 # state alongside the HTTP health check. Leave empty to skip that lookup.
 container = "llama-server"
 timeout = 3.0
+# How the /slots endpoint may be read.
+#
+# Reading /slots counts as activity on a server started with
+# --sleep-idle-seconds: it wakes a sleeping model and reloads the weights into
+# VRAM, so polling it on a timer keeps the model resident forever.
+#
+#   "auto"   (default) read /slots only while a request is in flight. Busy and
+#            idle counts still come from /metrics + /props every sample, so the
+#            card keeps working; only the per-slot breakdown waits for traffic.
+#            Needs the server started with --metrics.
+#   "always" poll /slots every sample. Correct only if the server does NOT use
+#            --sleep-idle-seconds; otherwise the model never unloads.
+#   "never"  never read /slots.
+slots_policy = "auto"
 
 [docker]
 # Collecting per-container CPU/memory costs a stats call per container, so it
