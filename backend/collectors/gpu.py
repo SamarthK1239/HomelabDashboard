@@ -63,6 +63,45 @@ _THROTTLE_REASONS: list[tuple[str, str]] = [
 #: as throttling would make the card look perpetually degraded.
 _BENIGN_REASONS = {"GPU idle", "Display clock setting", "Application clocks setting"}
 
+_POWER_CAP_REASON = "Software power cap"
+
+#: Fraction of the enforced power limit the card must actually be drawing
+#: before "Software power cap" is believed.
+_POWER_CAP_MIN_RATIO = 0.85
+
+
+def _is_throttled(
+    reasons: list[str] | None,
+    power_draw_w: float | None,
+    power_limit_w: float | None,
+) -> bool | None:
+    """Decide whether the reported reasons mean real work is being held back.
+
+    "Software power cap" needs context. On an idle consumer card the driver
+    attributes the idle downclock to the power-management algorithm, so the
+    SwPowerCap bit flickers on while the GPU sits at its minimum clock drawing
+    a small fraction of its budget -- an RTX 3090 reports it at 33 W of a 420 W
+    limit. Alarming on that trains the reader to ignore the throttle warning,
+    which matters because the same flag is genuinely important when the card is
+    pinned at its limit. It is therefore only believed when the card is drawing
+    close enough to the limit for the cap to be what is actually binding.
+    """
+    if reasons is None:
+        return None
+    for reason in reasons:
+        if reason in _BENIGN_REASONS:
+            continue
+        if reason == _POWER_CAP_REASON:
+            if (
+                power_draw_w is None
+                or power_limit_w is None
+                or power_limit_w <= 0
+                or power_draw_w / power_limit_w < _POWER_CAP_MIN_RATIO
+            ):
+                continue
+        return True
+    return False
+
 
 def _try(fn: Callable[[], _T], default: Any = None) -> Any:
     """Evaluate ``fn``, returning ``default`` if it raises.
@@ -332,6 +371,10 @@ class GpuCollector(Collector):
             )
         persistence = _try(lambda: pynvml.nvmlDeviceGetPersistenceMode(handle))
         reasons = self._throttle_reasons(handle)
+        power_draw_w = round(power_draw / 1000.0, 2) if power_draw is not None else None
+        power_limit_w = (
+            round(power_limit / 1000.0, 2) if power_limit is not None else None
+        )
 
         return {
             "index": index,
@@ -350,12 +393,8 @@ class GpuCollector(Collector):
                     )
                 )
             ),
-            "power_draw_watts": (
-                round(power_draw / 1000.0, 2) if power_draw is not None else None
-            ),
-            "power_limit_watts": (
-                round(power_limit / 1000.0, 2) if power_limit is not None else None
-            ),
+            "power_draw_watts": power_draw_w,
+            "power_limit_watts": power_limit_w,
             "fan_percent": _try(
                 lambda: float(pynvml.nvmlDeviceGetFanSpeed(handle))
             ),
@@ -385,11 +424,7 @@ class GpuCollector(Collector):
             ),
             "persistence_mode": None if persistence is None else bool(persistence),
             "throttle_reasons": reasons,
-            "throttled": (
-                None
-                if reasons is None
-                else any(r not in _BENIGN_REASONS for r in reasons)
-            ),
+            "throttled": _is_throttled(reasons, power_draw_w, power_limit_w),
             "processes": self._compute_processes(handle),
         }
 

@@ -21,6 +21,7 @@ from backend.collectors.base import (
     threshold_status,
     worst,
 )
+from backend.collectors.gpu import _is_throttled
 from backend.config import Config, load_config
 from backend.sampler import Sampler
 from backend.store import Store
@@ -204,3 +205,43 @@ def test_defaults_work_without_a_config_file(tmp_path: Any) -> None:
     config = load_config(tmp_path / "does-not-exist.toml")
     assert config.port == 8800
     assert config.interval("cpu", 1.0) == 2.0
+
+
+# --- gpu throttle classification --------------------------------------------
+
+
+def test_idle_software_power_cap_is_not_throttling() -> None:
+    """An idle RTX 3090 reports SwPowerCap at ~33 W of a 420 W limit.
+
+    The driver attributes the idle downclock to the power-management algorithm,
+    so believing the bit unconditionally lights up a throttle warning on a card
+    that is simply doing nothing.
+    """
+    assert _is_throttled(["Software power cap"], 33.4, 420.0) is False
+
+
+def test_software_power_cap_near_the_limit_is_real_throttling() -> None:
+    assert _is_throttled(["Software power cap"], 418.0, 420.0) is True
+
+
+def test_thermal_and_hardware_slowdowns_always_count() -> None:
+    # These are never an artefact of idling, so power draw is irrelevant.
+    assert _is_throttled(["Hardware slowdown"], 33.0, 420.0) is True
+    assert _is_throttled(["Software thermal slowdown"], 33.0, 420.0) is True
+    assert _is_throttled(["Hardware power brake slowdown"], 33.0, 420.0) is True
+
+
+def test_real_reason_alongside_an_idle_power_cap_still_alarms() -> None:
+    reasons = ["Software power cap", "Hardware thermal slowdown"]
+    assert _is_throttled(reasons, 33.0, 420.0) is True
+
+
+def test_power_cap_is_not_believed_without_usable_power_readings() -> None:
+    assert _is_throttled(["Software power cap"], None, 420.0) is False
+    assert _is_throttled(["Software power cap"], 33.0, None) is False
+    # A zero limit must not raise ZeroDivisionError.
+    assert _is_throttled(["Software power cap"], 33.0, 0.0) is False
+
+
+def test_unknown_throttle_reasons_stay_unknown() -> None:
+    assert _is_throttled(None, 33.0, 420.0) is None
