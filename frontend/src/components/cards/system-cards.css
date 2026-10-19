@@ -1,0 +1,565 @@
+/* ---------------------------------------------------------------------------
+   System cards — CPU, Memory, Disk, Uptime, Updates.
+
+   Every selector is prefixed `sys-` so this sheet can never collide with the
+   base theme in `index.css` or with any other card author's stylesheet. All
+   colours come from the `--status-*` / `--surface-*` / `--text-*` custom
+   properties defined in `index.css`; nothing here hardcodes a literal colour.
+   --------------------------------------------------------------------------- */
+
+/* ------------------------------- scaffolding ----------------------------- */
+
+.sys-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sys-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-section__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sys-section__title-note {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+/* --------------------------------- hero ---------------------------------- */
+
+.sys-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.sys-hero__main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-hero__value {
+  font-family: var(--mono);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.sys-hero__value--sm {
+  font-size: 26px;
+}
+
+.sys-hero__value[data-level='warn'] {
+  color: var(--status-warn);
+}
+
+.sys-hero__value[data-level='critical'] {
+  color: var(--status-critical);
+}
+
+.sys-hero__unit,
+.sys-hero__sub {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.sys-hero__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.sys-spark {
+  width: 100%;
+  min-width: 0;
+}
+
+/* -------------------------------- metrics -------------------------------- */
+
+.sys-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  min-width: 0;
+}
+
+.sys-metric__label {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow-wrap: anywhere;
+}
+
+.sys-metric__value {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.sys-metric__value--lg {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.sys-metric__value[data-level='warn'] {
+  color: var(--status-warn);
+}
+
+.sys-metric__value[data-level='critical'] {
+  color: var(--status-critical);
+}
+
+.sys-metric__sub {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+/* ---------------------------------- bar ---------------------------------- */
+
+.sys-bar {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.sys-bar--thin {
+  height: 5px;
+}
+
+.sys-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--status-ok);
+  transition: width 0.4s ease;
+}
+
+.sys-bar__fill[data-level='warn'] {
+  background: var(--status-warn);
+}
+
+.sys-bar__fill[data-level='critical'] {
+  background: var(--status-critical);
+}
+
+.sys-bar__fill[data-level='unknown'] {
+  background: var(--status-unknown);
+}
+
+/* --------------------------------- rows ---------------------------------- */
+
+.sys-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.sys-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-row__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sys-row__percent {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sys-row__percent[data-level='warn'] {
+  color: var(--status-warn);
+}
+
+.sys-row__percent[data-level='critical'] {
+  color: var(--status-critical);
+}
+
+.sys-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  min-width: 0;
+}
+
+.sys-row__meta span {
+  overflow-wrap: anywhere;
+}
+
+.sys-row__meta b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* -------------------------------- heatmap -------------------------------- */
+
+.sys-heat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sys-heat__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sys-heat__group + .sys-heat__group {
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--border-strong, var(--border));
+}
+
+.sys-heat__group-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.sys-heat__group-label b {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.sys-heat__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11px, 1fr));
+  gap: 2px;
+  min-width: 0;
+}
+
+.sys-heat__cell {
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+}
+
+/* Colour must not be the only carrier of meaning: busy cores also gain a
+   ring, and every cell exposes its exact reading via title/aria-label. */
+.sys-heat__cell[data-level='busy'] {
+  border-color: color-mix(in srgb, var(--status-warn) 70%, transparent);
+}
+
+.sys-heat__cell[data-level='saturated'] {
+  border-color: var(--status-critical);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-critical) 55%, transparent);
+}
+
+.sys-heat__cell[data-level='unknown'] {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface-2),
+    var(--surface-2) 3px,
+    var(--surface-3) 3px,
+    var(--surface-3) 6px
+  );
+}
+
+.sys-heat__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+.sys-heat__ramp {
+  flex: 1;
+  height: 5px;
+  min-width: 40px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--surface-3),
+    var(--status-ok),
+    var(--status-warn),
+    var(--status-critical)
+  );
+}
+
+/* --------------------------------- chips --------------------------------- */
+
+.sys-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sys-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 7px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sys-chip b {
+  font-family: var(--mono);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.sys-chip--ok {
+  border-color: color-mix(in srgb, var(--status-ok) 50%, transparent);
+  background: var(--status-ok-dim);
+  color: var(--status-ok);
+}
+
+.sys-chip--warn {
+  border-color: color-mix(in srgb, var(--status-warn) 50%, transparent);
+  background: var(--status-warn-dim);
+  color: var(--status-warn);
+}
+
+.sys-chip--critical {
+  border-color: color-mix(in srgb, var(--status-critical) 55%, transparent);
+  background: var(--status-critical-dim);
+  color: var(--status-critical);
+  font-weight: 600;
+}
+
+.sys-chip--critical b,
+.sys-chip--warn b,
+.sys-chip--ok b {
+  color: inherit;
+}
+
+/* -------------------------------- banners -------------------------------- */
+
+.sys-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: 12.5px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.sys-banner--warn {
+  border-color: color-mix(in srgb, var(--status-warn) 55%, transparent);
+  background: var(--status-warn-dim);
+}
+
+.sys-banner--critical {
+  border-color: color-mix(in srgb, var(--status-critical) 55%, transparent);
+  background: var(--status-critical-dim);
+}
+
+.sys-banner__title {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sys-banner--warn .sys-banner__title {
+  color: var(--status-warn);
+}
+
+.sys-banner--critical .sys-banner__title {
+  color: var(--status-critical);
+}
+
+.sys-banner__body {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------- notes --------------------------------- */
+
+.sys-note {
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.sys-note--inline {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.sys-muted {
+  color: var(--text-faint);
+}
+
+.sys-measuring {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 13px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface-2),
+    var(--surface-2) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+/* ------------------------------ package list ----------------------------- */
+
+.sys-pkglist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 184px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: var(--space-1);
+  min-width: 0;
+}
+
+.sys-pkg {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px var(--space-2);
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.sys-pkg + .sys-pkg {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.sys-pkg__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sys-pkg__tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 0 4px;
+  border: 1px solid currentcolor;
+  white-space: nowrap;
+}
+
+.sys-pkg__tag--security {
+  color: var(--status-critical);
+}
+
+.sys-pkg__tag--notable {
+  color: var(--status-warn);
+}
+
+.sys-pkg__versions {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sys-pkg__arrow {
+  color: var(--text-muted);
+  padding: 0 2px;
+}

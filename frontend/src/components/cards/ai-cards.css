@@ -1,0 +1,576 @@
+/* ---------------------------------------------------------------------------
+   Styles for the bespoke LLM / GPU / Docker cards.
+
+   Every selector is prefixed `ai-` so this file can never collide with the
+   shared dashboard stylesheet. Colours come exclusively from the theme custom
+   properties defined in `index.css`.
+   --------------------------------------------------------------------------- */
+
+.ai-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ai-label {
+  display: block;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ai-value {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.ai-value--warn {
+  color: var(--status-warn);
+  font-weight: 600;
+}
+
+.ai-sub {
+  color: var(--text-faint);
+  font-size: 0.9em;
+  font-weight: 400;
+}
+
+.ai-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ai-note--muted {
+  color: var(--text-faint);
+}
+
+.ai-hint {
+  display: block;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.ai-grid--tight {
+  gap: var(--space-1) var(--space-3);
+}
+
+.ai-cell {
+  min-width: 0;
+}
+
+.ai-cell .ai-value {
+  margin-top: 1px;
+}
+
+/* --------------------------------- chips --------------------------------- */
+
+.ai-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ai-chip--muted {
+  color: var(--text-faint);
+}
+
+.ai-chip--live {
+  color: var(--status-ok);
+  background: var(--status-ok-dim);
+  border-color: color-mix(in srgb, var(--status-ok) 35%, transparent);
+  font-weight: 600;
+}
+
+.ai-chip--warn {
+  color: var(--status-warn);
+  background: var(--status-warn-dim);
+  border-color: color-mix(in srgb, var(--status-warn) 35%, transparent);
+  font-weight: 600;
+}
+
+/* --------------------------------- dots ---------------------------------- */
+
+.ai-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--status-unknown);
+}
+
+.ai-dot--sm {
+  width: 7px;
+  height: 7px;
+}
+
+.ai-dot[data-status='ok'] {
+  background: var(--status-ok);
+}
+
+.ai-dot[data-status='warn'] {
+  background: var(--status-warn);
+}
+
+.ai-dot[data-status='critical'] {
+  background: var(--status-critical);
+}
+
+.ai-dot--pulse {
+  animation: ai-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-dot--pulse {
+    animation: none;
+  }
+}
+
+/* --------------------------------- bars ---------------------------------- */
+
+.ai-bar {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Deliberately neutral: a full VRAM bar is the normal state for a preallocated
+   KV cache, so usage never reads as an alarm on its own. */
+.ai-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.75;
+  transition: width 300ms ease;
+}
+
+/* ------------------------------- LLM card -------------------------------- */
+
+.ai-llm-state {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.ai-llm-state[data-status='ok'] {
+  border-color: color-mix(in srgb, var(--status-ok) 35%, transparent);
+  background: color-mix(in srgb, var(--status-ok) 7%, var(--surface-2));
+}
+
+.ai-llm-state[data-status='warn'] {
+  border-color: color-mix(in srgb, var(--status-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--status-warn) 7%, var(--surface-2));
+}
+
+.ai-llm-state[data-status='critical'] {
+  border-color: color-mix(in srgb, var(--status-critical) 40%, transparent);
+  background: color-mix(in srgb, var(--status-critical) 8%, var(--surface-2));
+}
+
+.ai-llm-state .ai-dot {
+  margin-top: 6px;
+}
+
+.ai-llm-state__body {
+  min-width: 0;
+}
+
+.ai-llm-state__label {
+  display: block;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ai-llm-layers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-2);
+}
+
+.ai-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--status-unknown);
+  min-width: 0;
+}
+
+.ai-layer[data-status='ok'] {
+  border-left-color: var(--status-ok);
+}
+
+.ai-layer[data-status='warn'] {
+  border-left-color: var(--status-warn);
+}
+
+.ai-layer[data-status='critical'] {
+  border-left-color: var(--status-critical);
+}
+
+.ai-layer__value {
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.ai-slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-slots__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.ai-slots__count {
+  font-family: var(--mono);
+  font-size: 14px;
+  margin-right: auto;
+}
+
+.ai-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-pip {
+  width: 100%;
+  max-width: 44px;
+  min-width: 14px;
+  flex: 1 1 14px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+
+.ai-pip--busy {
+  background: var(--status-ok);
+  border-color: var(--status-ok);
+}
+
+.ai-llm-latency {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ai-llm-latency__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ai-file {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------- GPU card -------------------------------- */
+
+.ai-gpu-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ai-gpu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+
+.ai-gpu__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ai-gpu__index {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  flex: none;
+}
+
+.ai-gpu__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ai-gpu__util {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  flex: none;
+}
+
+.ai-gpu__vram {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-gpu__vram-text {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ai-throttle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+
+.ai-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.ai-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-procs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ai-proc-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ai-proc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.ai-proc__name {
+  font-family: var(--mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.ai-proc__mem {
+  margin-left: auto;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ------------------------------ Docker card ------------------------------ */
+
+.ai-dk-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  gap: var(--space-2);
+}
+
+.ai-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.ai-count__value {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ai-count__label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.ai-count[data-tone='ok'] .ai-count__value {
+  color: var(--status-ok);
+}
+
+.ai-count[data-tone='warn'] .ai-count__value {
+  color: var(--status-warn);
+}
+
+.ai-count[data-tone='critical'] .ai-count__value {
+  color: var(--status-critical);
+}
+
+.ai-dk-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-dk-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--status-unknown);
+  min-width: 0;
+}
+
+.ai-dk-row[data-status='ok'] {
+  border-left-color: var(--status-ok);
+}
+
+.ai-dk-row[data-status='warn'] {
+  border-left-color: var(--status-warn);
+}
+
+.ai-dk-row[data-status='critical'] {
+  border-left-color: var(--status-critical);
+}
+
+/* A container that exited cleanly is finished work, not a problem: keep it
+   present but visually quiet. */
+.ai-dk-row--quiet {
+  opacity: 0.6;
+  background: var(--surface);
+}
+
+.ai-dk-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ai-dk-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.ai-dk-state {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.ai-dk-image {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ai-dk-metrics {
+  margin-top: 2px;
+}
+
+.ai-ports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}

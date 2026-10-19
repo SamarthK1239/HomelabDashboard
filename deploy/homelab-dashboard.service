@@ -1,0 +1,48 @@
+[Unit]
+Description=Homelab Dashboard
+Documentation=https://github.com/SamarthK1239/HomelabDashboard
+# The service binds to the Tailscale node IP, so the tailnet interface has to
+# exist first. Wants= rather than Requires= keeps a tailscaled restart from
+# tearing the dashboard down with it.
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+# If the tailnet address is not up yet the bind fails; retrying indefinitely is
+# preferable to giving up permanently at boot.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/.venv/bin/python -m backend
+Restart=always
+RestartSec=5
+
+# Hardening. The dashboard is read-only, but it holds Docker socket access,
+# which is root-equivalent -- these limits bound what a compromise of the web
+# process could actually reach.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+# ProtectSystem=strict makes everything read-only; the dashboard never writes
+# outside memory, so no ReadWritePaths are needed. Reading /proc, /sys and the
+# Docker socket all still work.
+
+[Install]
+WantedBy=multi-user.target

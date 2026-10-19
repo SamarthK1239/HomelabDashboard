@@ -1,0 +1,89 @@
+# Homelab Dashboard configuration.
+# Copy to config.toml and edit. Every value below is optional; the defaults
+# shown here are what the application uses when a key is omitted.
+
+[server]
+# Bind to the Tailscale node IP so the dashboard is only reachable over the
+# tailnet. Use "0.0.0.0" to also expose it on the LAN (not recommended).
+host = "100.123.241.114"
+port = 8800
+
+[history]
+# Rolling in-memory window for sparklines. Nothing is persisted to disk.
+window_seconds = 3600
+
+[ui]
+# Default frontend refresh delay. Users can override this in the browser;
+# their choice is remembered in localStorage.
+default_refresh_seconds = 5
+
+# Per-collector sampling intervals, in seconds. These are independent of the
+# UI refresh rate: the backend samples on its own cadence and the frontend
+# simply reads the latest values.
+[intervals]
+cpu = 2.0
+memory = 2.0
+gpu = 2.0
+uptime = 2.0
+llama = 5.0
+docker = 10.0
+disk = 15.0
+updates = 3600.0
+
+# Collectors can be disabled individually without touching code.
+[collectors]
+disabled = []
+
+[llama]
+# Host-side URL of the llama.cpp server. The container publishes its internal
+# port 8080 on host port 8090.
+url = "http://127.0.0.1:8090"
+# Name of the Docker container running llama.cpp, used to report container
+# state alongside the HTTP health check. Leave empty to skip that lookup.
+container = "llama-server"
+timeout = 3.0
+
+[docker]
+# Collecting per-container CPU/memory costs a stats call per container, so it
+# can be turned off if the container list alone is enough.
+include_stats = true
+
+[disk]
+# Mountpoints to report. Empty means autodetect all real (non-pseudo)
+# filesystems.
+mounts = []
+
+[updates]
+# Warn when the apt package cache is older than this. Refreshing the cache
+# needs root, which this read-only dashboard never does, so a stale cache is
+# reported rather than silently trusted.
+stale_after_hours = 24
+
+# Thresholds drive the ok / warn / critical status of each card. Values are
+# percentages unless noted otherwise.
+[thresholds]
+cpu_warn = 80.0
+cpu_critical = 95.0
+memory_warn = 80.0
+memory_critical = 92.0
+swap_warn = 25.0
+swap_critical = 50.0
+disk_warn = 80.0
+disk_critical = 90.0
+# A dedicated inference server runs its GPUs near-full on purpose: llama.cpp
+# preallocates the KV cache up front, so this box idles at ~98% VRAM with the
+# model loaded. Conventional 85/95 ceilings would therefore pin the card to
+# CRITICAL forever and train you to ignore it. Temperature and throttling are
+# the signals that actually indicate trouble here; these only fire on genuine
+# exhaustion.
+gpu_memory_warn = 99.0
+gpu_memory_critical = 99.8
+gpu_temp_warn = 80.0
+gpu_temp_critical = 88.0
+cpu_temp_warn = 80.0
+cpu_temp_critical = 90.0
+# Absolute counts, not percentages.
+updates_warn = 20
+updates_critical = 50
+# Any pending security update at or above this count is critical.
+security_updates_critical = 1
