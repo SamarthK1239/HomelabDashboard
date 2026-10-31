@@ -225,7 +225,7 @@ function GpuSection({ gpu, refreshSeconds }: { gpu: GpuView; refreshSeconds: num
             timestamps={temp.timestamps}
             values={temp.values}
             unit="°C"
-            color="var(--status-warn)"
+            color="var(--sev-warn-solid)"
             height={38}
             label={`GPU ${gpu.index} temperature history, celsius`}
           />

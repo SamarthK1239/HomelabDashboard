@@ -1,11 +1,57 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-density="comfortable">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0d1117" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#111318" />
+    <meta name="description" content="Read-only monitoring dashboard for a homelab server." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Homelab Dashboard</title>
+    <script>
+      /*
+       * Theme and density bootstrap.
+       *
+       * This runs before the first paint and before React mounts. Without it
+       * the document would render with the markup defaults and then snap to
+       * the stored preference a frame later — a white flash on a dark wall
+       * display at 3am, which is exactly the kind of detail that makes an
+       * interface feel unfinished.
+       *
+       * It intentionally duplicates a few lines of `src/preferences.ts`
+       * rather than importing it: a module import cannot be synchronous here,
+       * and any import would defer this past first paint, defeating the point.
+       */
+      (function () {
+        try {
+          var raw = localStorage.getItem('homelab-dashboard:prefs:v1');
+          var prefs = raw ? JSON.parse(raw) : {};
+          var theme = prefs && prefs.theme;
+          if (theme !== 'dark' && theme !== 'light') {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          var density = prefs && prefs.density;
+          if (density !== 'compact' && density !== 'comfortable' && density !== 'ambient') {
+            var w = window.innerWidth;
+            var coarse = window.matchMedia('(pointer: coarse)').matches;
+            density =
+              coarse || w < 640
+                ? 'compact'
+                : w >= 2200 || (w >= 1800 && window.innerHeight >= 1000)
+                  ? 'ambient'
+                  : 'comfortable';
+          }
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.setAttribute('data-density', density);
+          if (prefs && prefs.burnInGuard) root.setAttribute('data-burn-in', 'true');
+        } catch (error) {
+          /* A broken preference must never stop the dashboard rendering. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

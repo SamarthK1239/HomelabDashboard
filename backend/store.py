@@ -1,9 +1,9 @@
 """In-memory state shared between the sampler and the API.
 
-Holds the latest result per collector plus a rolling history window for the
-scalar series collectors choose to expose. Nothing is persisted: restarting the
-service starts the history fresh, which is the documented trade-off for having
-no database.
+Holds the latest result per collector, a rolling history window for the scalar
+series collectors choose to expose, and a bounded log of status transitions.
+Nothing is persisted: restarting the service starts the history fresh, which is
+the documented trade-off for having no database.
 """
 
 from __future__ import annotations
@@ -16,6 +16,11 @@ from typing import Any
 
 from .collectors.base import CollectorResult, Status, worst
 
+# How many status transitions to remember. Transitions are rare by nature -- a
+# healthy box produces none for days -- so a few hundred covers a long incident
+# without the log ever being a memory concern.
+MAX_EVENTS = 250
+
 
 class Store:
     def __init__(self, window_seconds: int = 3600) -> None:
@@ -23,6 +28,7 @@ class Store:
         self._lock = threading.Lock()
         self._latest: dict[str, CollectorResult] = {}
         self._history: dict[str, deque[tuple[float, float]]] = {}
+        self._events: deque[dict[str, Any]] = deque(maxlen=MAX_EVENTS)
         self._meta: dict[str, Any] = {}
         self.started_at = time.time()
 
@@ -37,7 +43,24 @@ class Store:
     def record(self, result: CollectorResult, series: dict[str, float] | None = None) -> None:
         """Store a collector result and append any scalar series it produced."""
         with self._lock:
+            previous = self._latest.get(result.name)
             self._latest[result.name] = result
+
+            # A transition is logged only when the status actually changes.
+            # The very first sample is not a transition -- there was no prior
+            # state to leave -- so it is recorded silently; otherwise every
+            # restart would manufacture nine "events" that nothing happened.
+            if previous is not None and previous.status is not result.status:
+                self._events.append(
+                    {
+                        "collector": result.name,
+                        "from": previous.status.value,
+                        "to": result.status.value,
+                        "timestamp": result.updated_at,
+                        "error": result.error,
+                    }
+                )
+
             if not series:
                 return
             cutoff = result.updated_at - self.window_seconds
@@ -83,3 +106,10 @@ class Store:
     def history_keys(self) -> list[str]:
         with self._lock:
             return sorted(self._history)
+
+    def events(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Most recent status transitions, newest first."""
+        with self._lock:
+            recent = list(self._events)[-limit:]
+        recent.reverse()
+        return recent

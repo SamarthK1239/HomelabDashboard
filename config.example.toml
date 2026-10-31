@@ -26,6 +26,7 @@ memory = 2.0
 gpu = 2.0
 uptime = 2.0
 llama = 5.0
+power = 5.0
 docker = 10.0
 disk = 15.0
 updates = 3600.0
@@ -67,6 +68,36 @@ include_stats = true
 # filesystems.
 mounts = []
 
+# Total system power. No single sensor reports it, so the collector adds up
+# Intel RAPL (CPU package + DRAM), NVML (per-GPU board power), and a
+# configurable baseline for everything with no sensor at all.
+[power]
+# Fixed allowance in watts for drives, fans, NIC, chipset and board regulators
+# -- hardware that reports no power at all. This is a guess, not a measurement,
+# so it is reported as its own component and defaults to zero. A rough starting
+# point for a loaded server chassis is 40-80 W.
+baseline_watts = 0.0
+# PSU efficiency (0-1) used to turn the component sum into an estimated figure
+# at the wall. 0.9 is typical for an 80+ Gold unit at moderate load. Leave at
+# 1.0 to report components only.
+psu_efficiency = 1.0
+# Uncomment to translate the running total into a daily and monthly cost.
+# cost_per_kwh = 0.16
+# currency = "$"
+#
+# NOTE: reading RAPL energy counters needs root (CVE-2020-8694 made
+# /sys/class/powercap/*/energy_uj mode 0400), and this dashboard deliberately
+# runs unprivileged -- so the CPU and DRAM terms report as unavailable until
+# read access is granted. To grant it, drop this in
+# /etc/udev/rules.d/99-rapl.rules and reload udev:
+#
+#   SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chgrp -R <service-group> /sys/devices/virtual/powercap/intel-rapl"
+#   SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chmod -R g+r /sys/devices/virtual/powercap/intel-rapl"
+#
+# RAPL readings are a known side channel for inferring cryptographic keys, which
+# is why they are privileged; grant them only to an account you already trust.
+# The GPU and baseline terms work without any of this.
+
 [updates]
 # Warn when the apt package cache is older than this. Refreshing the cache
 # needs root, which this read-only dashboard never does, so a stale cache is
@@ -96,6 +127,11 @@ gpu_temp_warn = 80.0
 gpu_temp_critical = 88.0
 cpu_temp_warn = 80.0
 cpu_temp_critical = 90.0
+# Total system power in watts. Both zero (the default) disables the power
+# card's thresholds: a sensible ceiling depends on the PSU and what is in the
+# box, so there is no safe default to pick here.
+power_warn = 0.0
+power_critical = 0.0
 # Absolute counts, not percentages.
 updates_warn = 20
 updates_critical = 50

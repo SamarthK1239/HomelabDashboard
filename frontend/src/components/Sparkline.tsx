@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import './sparkline.css';
 
 export interface SparklineProps {
   /** Epoch seconds, ascending. */
@@ -10,7 +11,7 @@ export interface SparklineProps {
   /** Stroke colour; defaults to the theme accent. */
   color?: string;
   height?: number;
-  /** Unit suffix, used for the accessible label (e.g. `%`, `°C`). */
+  /** Unit suffix, used for the accessible label and the tooltip (`%`, `°C`). */
   unit?: string;
   /** Optional y-axis clamps, e.g. `min={0} max={100}` for percentages. */
   min?: number;
@@ -19,10 +20,37 @@ export interface SparklineProps {
   fill?: boolean;
   label?: string;
   className?: string;
+  /**
+   * Show a crosshair and a value tooltip on hover. Every interactive chart
+   * sharing a `syncKey` moves together, so hovering one reads the same instant
+   * on all of them.
+   */
+  interactive?: boolean;
+  syncKey?: string;
+  /** Detail mode: axes, gridlines and a taller plot for the detail sheet. */
+  detail?: boolean;
+  /** Overrides the default tooltip number formatting. */
+  formatValue?: (value: number) => string;
 }
 
 const DEFAULT_HEIGHT = 44;
-const DEFAULT_COLOR = 'var(--accent)';
+const DEFAULT_COLOR = 'var(--accent-solid)';
+
+/**
+ * Cursor synchronisation groups, created lazily and shared across every
+ * Sparkline using the same key. uPlot requires the *same* sync object on each
+ * chart, so they are cached here rather than created per component.
+ */
+const syncGroups = new Map<string, uPlot.SyncPubSub>();
+
+function syncFor(key: string): uPlot.SyncPubSub {
+  let group = syncGroups.get(key);
+  if (!group) {
+    group = uPlot.sync(key);
+    syncGroups.set(key, group);
+  }
+  return group;
+}
 
 /** Resolve a CSS custom property to a literal colour for canvas drawing. */
 function resolveColor(color: string, element: Element | null): string {
@@ -32,16 +60,43 @@ function resolveColor(color: string, element: Element | null): string {
   return resolved || '#7aa2f7';
 }
 
+/**
+ * Canvas cannot read a CSS custom property, and the theme is expressed almost
+ * entirely in them. Colours are therefore resolved at build time against the
+ * live element — which also means a theme switch has to rebuild the chart, and
+ * `themeTick` below is what forces that.
+ */
 function withAlpha(color: string, alpha: number): string {
   const hex = /^#([0-9a-f]{6})$/i.exec(color);
   if (hex) {
     const int = Number.parseInt(hex[1], 16);
     return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
   }
-  const rgb = /^rgb\(([^)]+)\)$/i.exec(color);
-  if (rgb) return `rgba(${rgb[1]}, ${alpha})`;
-  return color;
+  const rgb = /^rgba?\(([^)]+)\)$/i.exec(color);
+  if (rgb) return `rgba(${rgb[1].split('/')[0].trim()}, ${alpha})`;
+  // oklch() and friends: color-mix keeps this correct without parsing.
+  return `color-mix(in oklab, ${color} ${Math.round(alpha * 100)}%, transparent)`;
 }
+
+/** Re-render charts when the document theme changes. */
+function useThemeTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTick((value) => value + 1));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    return () => observer.disconnect();
+  }, []);
+  return tick;
+}
+
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 
 /**
  * A minimal uPlot line chart.
@@ -61,9 +116,16 @@ export function Sparkline({
   fill = true,
   label,
   className,
+  interactive = true,
+  syncKey = 'dashboard',
+  detail = false,
+  formatValue,
 }: SparklineProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
+  const themeTick = useThemeTick();
+
+  const [hover, setHover] = useState<{ left: number; value: number; time: number } | null>(null);
 
   const data = useMemo<uPlot.AlignedData>(() => {
     const length = Math.min(timestamps.length, values.length);
@@ -87,14 +149,27 @@ export function Sparkline({
     if (!container || !plottable) return;
 
     const stroke = resolveColor(color, container);
+    const axisColor = resolveColor('var(--fg-tertiary)', container);
+    const gridColor = resolveColor('var(--line-subtle)', container);
+
     const options: uPlot.Options = {
       width: Math.max(1, Math.round(container.clientWidth || 240)),
       height,
       class: 'sparkline-plot',
       legend: { show: false },
-      cursor: { show: false },
+      cursor: interactive
+        ? {
+            show: true,
+            x: true,
+            y: false,
+            points: { show: true, size: 6 },
+            // Charts sharing a key move together, so one hover reads the same
+            // instant across every card on the page.
+            sync: { key: syncKey, setSeries: false },
+          }
+        : { show: false },
       select: { show: false, left: 0, top: 0, width: 0, height: 0 },
-      padding: [4, 1, 2, 1],
+      padding: detail ? [8, 8, 0, 0] : [4, 1, 2, 1],
       scales: {
         x: { time: true },
         y: {
@@ -116,20 +191,55 @@ export function Sparkline({
           },
         },
       },
-      axes: [
-        { show: false },
-        { show: false },
-      ],
+      axes: detail
+        ? [
+            {
+              stroke: axisColor,
+              grid: { stroke: gridColor, width: 1 },
+              ticks: { stroke: gridColor, width: 1 },
+              size: 32,
+              font: '11px system-ui, sans-serif',
+            },
+            {
+              stroke: axisColor,
+              grid: { stroke: gridColor, width: 1 },
+              ticks: { stroke: gridColor, width: 1 },
+              size: 44,
+              font: '11px system-ui, sans-serif',
+            },
+          ]
+        : [{ show: false }, { show: false }],
       series: [
         {},
         {
           stroke,
-          width: 1.75,
+          width: detail ? 2 : 1.75,
           fill: fill ? withAlpha(stroke, 0.16) : undefined,
           points: { show: false },
           spanGaps: false,
         },
       ],
+      hooks: interactive
+        ? {
+            setCursor: [
+              (self) => {
+                const index = self.cursor.idx;
+                const left = self.cursor.left ?? -1;
+                if (index === null || index === undefined || left < 0) {
+                  setHover(null);
+                  return;
+                }
+                const ys = self.data[1] as (number | null)[];
+                const value = ys[index];
+                if (typeof value !== 'number') {
+                  setHover(null);
+                  return;
+                }
+                setHover({ left, value, time: (self.data[0] as number[])[index] });
+              },
+            ],
+          }
+        : undefined,
     };
 
     const plot = new uPlot(options, dataRef.current, container);
@@ -145,8 +255,16 @@ export function Sparkline({
       observer.disconnect();
       plot.destroy();
       plotRef.current = null;
+      setHover(null);
     };
-  }, [color, fill, height, max, min, plottable]);
+    // `syncFor` is referenced via the options object; keep it out of deps.
+  }, [color, detail, fill, height, interactive, max, min, plottable, syncKey, themeTick]);
+
+  // uPlot resolves `cursor.sync.key` to a group internally; priming the cache
+  // here keeps every chart on the page in the same group object.
+  useEffect(() => {
+    if (interactive) syncFor(syncKey);
+  }, [interactive, syncKey]);
 
   // Data updates: hand the new arrays to the existing chart.
   useEffect(() => {
@@ -154,16 +272,40 @@ export function Sparkline({
     plotRef.current?.setData(data);
   }, [data]);
 
-  const lastValue = useMemo(() => {
+  const stats = useMemo(() => {
     const ys = data[1] as (number | null)[];
-    for (let i = ys.length - 1; i >= 0; i -= 1) {
+    let last: number | null = null;
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < ys.length; i += 1) {
       const value = ys[i];
-      if (typeof value === 'number') return value;
+      if (typeof value !== 'number') continue;
+      last = value;
+      if (value < lo) lo = value;
+      if (value > hi) hi = value;
     }
-    return null;
+    return {
+      last,
+      min: Number.isFinite(lo) ? lo : null,
+      max: Number.isFinite(hi) ? hi : null,
+    };
   }, [data]);
 
-  const classes = ['sparkline', className].filter(Boolean).join(' ');
+  /*
+   * A bounded chart (0-100%, say) keeps its full axis even when the series
+   * sits near one edge, so shapes stay comparable between cards. That leaves a
+   * large empty region which, unmarked, reads as missing data rather than as
+   * headroom — the rules below frame it as a scale.
+   */
+  const bounded = min !== undefined && max !== undefined;
+  const classes = [
+    'sparkline',
+    detail ? 'sparkline--detail' : null,
+    bounded && !detail ? 'sparkline--bounded' : null,
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   if (!plottable) {
     return (
@@ -173,13 +315,32 @@ export function Sparkline({
     );
   }
 
+  const format = formatValue ?? ((value: number) => `${value.toFixed(1)}${unit ?? ''}`);
+
+  /*
+   * The accessible name carries the shape of the series, not just the last
+   * point: a screen-reader user gets "latest 42%, ranging 11% to 97%" rather
+   * than an image they cannot interpret at all.
+   */
   const ariaLabel =
     label ??
-    (lastValue === null
+    (stats.last === null
       ? 'history chart'
-      : `history chart, latest ${lastValue.toFixed(1)}${unit ?? ''}`);
+      : stats.min !== null && stats.max !== null
+        ? `history chart, latest ${format(stats.last)}, ranging ${format(stats.min)} to ${format(stats.max)}`
+        : `history chart, latest ${format(stats.last)}`);
 
-  return <div ref={containerRef} className={classes} style={{ height }} role="img" aria-label={ariaLabel} />;
+  return (
+    <div className={classes} style={{ height }}>
+      <div ref={containerRef} style={{ height }} role="img" aria-label={ariaLabel} />
+      {hover ? (
+        <span className="spark-tip" style={{ left: hover.left }} aria-hidden="true">
+          {format(hover.value)}
+          <span className="spark-tip__time">{timeFormatter.format(hover.time * 1000)}</span>
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 export default Sparkline;

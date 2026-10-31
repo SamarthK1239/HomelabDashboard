@@ -1,0 +1,473 @@
+/* ---------------------------------------------------------------------------
+   Application shell
+   ---------------------------------------------------------------------------
+   Page frame, top bar, grid, banners and the ambient/kiosk treatments.
+   --------------------------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  padding-inline: max(var(--space-5), env(safe-area-inset-left));
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
+  max-width: var(--shell-max);
+  margin: 0 auto;
+}
+
+/*
+ * A flex column, not a bare block: the summary, the attention strip and the
+ * grid are siblings here, and `.app`'s gap stops at `<main>`, so without this
+ * they sit flush against one another with no separation at all.
+ */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/*
+ * Night dimming and burn-in protection.
+ *
+ * Dimming is a luminance filter rather than a palette change: the design is
+ * already contrast-checked, and re-tinting it at night would invalidate that.
+ * Lowering brightness preserves every ratio between elements.
+ *
+ * The burn-in drift moves the entire shell by a couple of pixels over a very
+ * long cycle. On an always-on panel showing the same nine rectangles for
+ * months, static edges are what etch in; a slow sub-pixel wander is invisible
+ * to a human and sufficient to prevent it.
+ */
+:root[data-dimmed='true'] .app {
+  filter: brightness(var(--ambient-dim, 0.62));
+  transition: filter 2s var(--ease-standard);
+}
+
+:root[data-burn-in='true'] .app {
+  animation: burn-in-drift 1800s linear infinite;
+}
+
+@keyframes burn-in-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(2px, 1px);
+  }
+  50% {
+    transform: translate(0, 2px);
+  }
+  75% {
+    transform: translate(-2px, 1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* ------------------------------ skip link -------------------------------- */
+
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: var(--space-4);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  color: var(--fg-on-accent);
+  background: var(--accent-solid);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  transform: translateY(-200%);
+  transition: transform var(--dur-fast) var(--ease-emphasized);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* -------------------------------- topbar --------------------------------- */
+
+/* The topbar is sticky, so anything scrolled to by `scrollIntoView` -- a card
+   focused from a KPI tile, or the skip link's target -- would otherwise land
+   underneath it. Reserving the bar's height at the top of every scroll port
+   fixes that once, for every present and future scroll target. */
+:root {
+  scroll-padding-top: 5rem;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-top: calc(var(--space-4) * -1);
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+
+  background: var(--glass-bg);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-1), var(--edge-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  transition:
+    padding var(--dur-base) var(--ease-standard),
+    opacity var(--dur-slow) var(--ease-standard),
+    transform var(--dur-slow) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
+}
+
+/* Condense once the page has scrolled: the identity stays, the breathing room
+   goes, so more data is on screen when someone is actually reading. */
+.topbar--condensed {
+  padding-block: var(--space-2);
+  box-shadow: var(--elev-3);
+}
+
+/* Kiosk: chrome fades out after a period with no input and returns on the
+   first pointer move or key press. */
+.app--chrome-hidden .topbar {
+  opacity: 0;
+  transform: translateY(-0.5rem);
+  pointer-events: none;
+}
+
+.topbar__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.topbar__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  color: var(--sev-fg, var(--fg-secondary));
+  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  transition:
+    color var(--dur-slow) var(--ease-standard),
+    background-color var(--dur-slow) var(--ease-standard);
+}
+
+.topbar__mark[data-status='warn'],
+.topbar__mark[data-status='critical'] {
+  background: var(--sev-tint-strong);
+}
+
+.topbar__names {
+  min-width: 0;
+}
+
+.topbar__host {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-tight);
+  line-height: var(--leading-tight);
+}
+
+.topbar__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: 0.125rem;
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+}
+
+.topbar__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/*
+ * The connection indicator. Distinct from collector status: this says whether
+ * the browser is still in contact with the backend at all, which is the one
+ * fact that decides whether anything else on screen can be trusted.
+ */
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--sev-line);
+  background: var(--sev-tint-strong);
+  color: var(--sev-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.conn[data-status='ok'] {
+  background: transparent;
+  border-color: var(--line-subtle);
+  color: var(--fg-tertiary);
+}
+
+.conn__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--sev-solid);
+  flex: none;
+}
+
+.conn--live .conn__dot {
+  animation: status-breathe 2.4s var(--ease-standard) infinite;
+}
+
+.topbar__age {
+  color: var(--fg-tertiary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar__age--warn {
+  color: var(--sev-warn-fg);
+  font-weight: var(--weight-semibold);
+}
+
+.topbar__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --------------------------------- grid ---------------------------------- */
+
+/*
+ * Cards carry very different amounts of information on purpose, so a uniform
+ * grid row leaves a tall GPU card dictating dead space under every short card
+ * beside it. `useMasonry` adds `.grid--masonry` and gives each card a
+ * `grid-row-end: span N` matching its own height, so cards pack against the
+ * card above them instead. Without that script this stays an ordinary grid —
+ * aligned rather than packed, but never broken.
+ */
+/*
+ * The vertical gutter is deliberately larger than the horizontal one.
+ * Measured equally they do not *read* equally: a column gap is a continuous
+ * channel running the height of the page, while a row gap is a sliver trapped
+ * between two heavy, bordered boxes, so the eye consistently judges it as the
+ * tighter of the two. Setting it one step up on the scale is what makes them
+ * look like the same gutter.
+ */
+.grid {
+  --card-gutter: var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  column-gap: var(--space-4);
+  row-gap: var(--card-gutter);
+  align-items: start;
+
+  /* `.content` is a flex column whose gap already separates the grid from the
+     summary above it. Topping that up to the card gutter means the first row
+     sits the same distance from the summary as the cards sit from each
+     other, instead of appearing to be stuck to it. */
+  margin-top: calc(var(--card-gutter) - var(--space-4));
+}
+
+/*
+ * The gutter becomes a margin rather than `row-gap` because the span
+ * arithmetic has to account for it: a row gap applies between whole rows, not
+ * between items that each span a different number of them.
+ */
+.grid--masonry {
+  --masonry-row: 4px;
+  --masonry-gap: var(--card-gutter);
+  row-gap: 0;
+  grid-auto-rows: var(--masonry-row);
+}
+
+.grid--masonry > * {
+  margin-bottom: var(--masonry-gap);
+}
+
+/*
+ * Each card sits in a slot rather than directly in the grid. The slot carries
+ * the masonry row span and the entrance stagger index, which keeps every card
+ * component free of layout concerns — a card never needs to know where in the
+ * grid it landed.
+ */
+.grid__slot {
+  min-width: 0;
+  display: flex;
+}
+
+.grid__slot > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * Entrance. Cards fade up in sequence on first paint, which communicates that
+ * the grid is being assembled from independent collectors rather than
+ * appearing as one monolithic image. `--enter-index` is set per card.
+ */
+.grid--entering > * {
+  animation: card-enter var(--dur-slow) var(--ease-emphasized) backwards;
+  animation-delay: calc(var(--enter-index, 0) * 45ms);
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+}
+
+/* ------------------------------- banners --------------------------------- */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-raised);
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.banner--warn {
+  color: var(--sev-warn-fg);
+  background: color-mix(in oklab, var(--sev-warn-solid) 12%, var(--bg-raised));
+  border-color: color-mix(in oklab, var(--sev-warn-solid) 40%, transparent);
+}
+
+.banner--muted {
+  color: var(--fg-tertiary);
+}
+
+/* ------------------------------ page footer ------------------------------ */
+
+.pagefoot {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+  padding-top: var(--space-2);
+  transition: opacity var(--dur-slow) var(--ease-standard);
+}
+
+.app--chrome-hidden .pagefoot {
+  opacity: 0;
+}
+
+.pagefoot__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ----------------------------- fatal error ------------------------------- */
+
+.fatal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 44rem;
+  margin: var(--space-7) auto;
+  padding: var(--space-5);
+  background: var(--bg-raised);
+  border: 1px solid var(--sev-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-2);
+}
+
+.fatal__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--sev-crit-fg);
+  background: var(--sev-tint-strong);
+  border-radius: var(--radius-md);
+}
+
+.fatal__title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-tight);
+}
+
+.fatal__body {
+  color: var(--fg-secondary);
+  font-size: var(--text-md);
+}
+
+.fatal__message {
+  display: block;
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--fg-primary);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------ responsive ------------------------------- */
+
+@media (max-width: 56rem) {
+  .app {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .topbar {
+    position: sticky;
+    margin-top: 0;
+    padding: var(--space-3);
+  }
+
+  .topbar__state {
+    margin-left: 0;
+  }
+
+  .topbar__controls {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 36rem) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    gap: var(--space-2);
+  }
+
+  .topbar__host {
+    font-size: var(--text-lg);
+  }
+
+  /* Touch targets grow to the 44px accessibility minimum on coarse pointers. */
+  .btn--icon {
+    width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}

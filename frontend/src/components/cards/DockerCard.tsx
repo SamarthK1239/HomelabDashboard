@@ -1,5 +1,6 @@
 import { Card } from '../Card';
 import { StatusBadge } from '../StatusBadge';
+import { useRowLimit } from '../../hooks/useRowLimit';
 import {
   formatBytes,
   formatDuration,
@@ -75,6 +76,9 @@ function toContainerView(entry: unknown, position: number): ContainerView {
     hasStats,
   };
 }
+
+/** Containers shown before the list starts scrolling. */
+const VISIBLE_CONTAINERS = 3;
 
 /** Running first, then alphabetically — the wall-monitor reading order. */
 const STATE_RANK: Record<string, number> = {
@@ -179,6 +183,9 @@ function ContainerRow({ container }: { container: ContainerView }) {
 
 export function DockerCard({ result }: CardProps) {
   const data = record(result.data);
+  // The list grows with every container added to the host; showing three and
+  // scrolling the rest keeps this card from crowding out its neighbours.
+  const listRef = useRowLimit<HTMLUListElement>(VISIBLE_CONTAINERS);
   const containers = list(data.containers)
     .map(toContainerView)
     .sort((a, b) => stateRank(a.state) - stateRank(b.state) || a.name.localeCompare(b.name));
@@ -218,7 +225,12 @@ export function DockerCard({ result }: CardProps) {
         {containers.length === 0 ? (
           <p className="ai-note ai-note--muted">no containers</p>
         ) : (
-          <ul className="ai-dk-list">
+          <ul
+            className="ai-dk-list"
+            ref={listRef}
+            tabIndex={containers.length > VISIBLE_CONTAINERS ? 0 : undefined}
+            aria-label={`${containers.length} containers`}
+          >
             {containers.map((container) => (
               <ContainerRow key={container.key} container={container} />
             ))}

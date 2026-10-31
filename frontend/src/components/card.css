@@ -1,0 +1,366 @@
+/* ---------------------------------------------------------------------------
+   Card chrome
+   ---------------------------------------------------------------------------
+   Each card is a CSS *container*, so its internals lay out against their own
+   width rather than the viewport. A card dropped into a narrow column and the
+   same card spanning half a wall display are the same component responding to
+   two different measurements, with no global breakpoints involved.
+   --------------------------------------------------------------------------- */
+
+.card {
+  container-type: inline-size;
+  container-name: card;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  min-width: 0;
+
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-1), var(--edge-highlight);
+
+  transition:
+    border-color var(--dur-base) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard),
+    background-color var(--dur-base) var(--ease-standard),
+    transform var(--dur-base) var(--ease-standard);
+}
+
+/*
+ * Severity buys salience. An `ok` card has no tint at all; warn and critical
+ * cards gain a wash of their own colour plus a coloured hairline, so a problem
+ * is visible as a *region* from across the room, long before the glyph or the
+ * number can be resolved.
+ */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--sev-tint);
+  pointer-events: none;
+  transition: background-color var(--dur-slow) var(--ease-standard);
+}
+
+.card[data-status='warn'],
+.card[data-status='critical'] {
+  border-color: var(--sev-line);
+}
+
+.card[data-status='critical'] {
+  box-shadow:
+    var(--elev-2),
+    var(--edge-highlight),
+    0 0 0 1px var(--sev-line);
+}
+
+.card:hover {
+  border-color: var(--line-default);
+  box-shadow: var(--elev-2), var(--edge-highlight);
+}
+
+/*
+ * The full-bleed open-details target. It sits beneath the content so clicks on
+ * the menu, scrollable lists and links still reach them.
+ */
+.card__surface-action {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: inherit;
+  cursor: pointer;
+}
+
+.card > *:not(.card__surface-action) {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * The rule above gives every direct child its own stacking context at the same
+ * level, so later siblings paint over earlier ones and the body would cover the
+ * header's open overflow menu no matter how high that menu's own z-index went
+ * -- the menu is trapped inside the header's context. Lifting the header one
+ * level frees it. (This also restores the menu's backdrop blur, which was
+ * sampling a backdrop that the body then painted straight over.)
+ */
+/* The child selector is needed, not decoration: the rule above is two classes
+   wide, so a bare `.card__header` would lose the specificity tie and keep the
+   z-index of 1 it is trying to override. */
+.card > .card__header {
+  z-index: 2;
+}
+
+/* Pointer-events are disabled on content by default would break lists, so the
+   surface action is simply behind everything; it only receives clicks that
+   land on padding and empty space. */
+
+.card--pinned {
+  border-color: color-mix(in oklab, var(--accent-solid) 35%, var(--line-subtle));
+}
+
+/* Flash when jumped to from a KPI or the command palette. */
+.card--highlight {
+  animation: card-highlight var(--dur-slower) var(--ease-standard) 2;
+}
+
+@keyframes card-highlight {
+  0%,
+  100% {
+    box-shadow: var(--elev-1), var(--edge-highlight);
+  }
+  50% {
+    box-shadow:
+      var(--elev-2),
+      var(--edge-highlight),
+      0 0 0 2px var(--accent-solid);
+  }
+}
+
+/* -------------------------------- stale ---------------------------------- */
+
+/*
+ * A collector that stopped updating must not look like a healthy one — but it
+ * must stay *readable*, because its last known values are precisely what a
+ * human needs in order to judge what happened. So: no opacity, no
+ * desaturation. Instead a hatched band across the top edge marks the card as
+ * suspect while leaving every number at full contrast.
+ */
+.card--stale {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--sev-warn-solid) 45%, var(--line-subtle));
+}
+
+.card--stale::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.25rem;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--sev-warn-solid) 0 0.3rem,
+    transparent 0.3rem 0.6rem
+  );
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.card--error {
+  border-color: var(--sev-line);
+}
+
+/* -------------------------------- header --------------------------------- */
+
+.card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.card__identity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  margin-top: -0.0625rem;
+  color: var(--fg-tertiary);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-base) var(--ease-standard);
+}
+
+/* The identity icon adopts the severity colour only when there is a problem —
+   another place where colour is spent on signal, not decoration. */
+.card[data-status='warn'] .card__identity,
+.card[data-status='critical'] .card__identity {
+  color: var(--sev-fg);
+  background: var(--sev-tint-strong);
+}
+
+.card__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.card__title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-tight);
+  line-height: var(--leading-snug);
+  color: var(--fg-primary);
+}
+
+.card__subtitle {
+  margin-top: 0.0625rem;
+  font-size: var(--text-xs);
+  color: var(--fg-tertiary);
+}
+
+.card__header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.card__pin {
+  color: var(--accent-fg);
+}
+
+/*
+ * The overflow trigger is revealed on hover or keyboard focus. On a wall
+ * display nobody is hovering, so chrome that is never used should not be
+ * permanently occupying the header.
+ */
+.card__menu {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.card:hover .card__menu,
+.card:focus-within .card__menu,
+.card__menu[aria-expanded='true'] {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .card__menu {
+    opacity: 1;
+  }
+}
+
+/* --------------------------------- error --------------------------------- */
+
+.card__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--sev-tint-strong);
+  border: 1px solid var(--sev-line);
+}
+
+.card__error-label {
+  color: var(--sev-crit-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+.card__error-message {
+  color: var(--fg-primary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------- body ---------------------------------- */
+
+.card__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.card__empty {
+  color: var(--fg-tertiary);
+  font-size: var(--text-sm);
+  padding: var(--space-2) 0;
+}
+
+/* -------------------------------- footer --------------------------------- */
+
+.card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line-subtle);
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+}
+
+.card__age--stale {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.1rem 0.4rem;
+  color: var(--sev-warn-fg);
+  font-weight: var(--weight-semibold);
+  background: color-mix(in oklab, var(--sev-warn-solid) 16%, transparent);
+  border-radius: var(--radius-xs);
+}
+
+.card__footer-extra {
+  text-align: right;
+  min-width: 0;
+}
+
+/* ------------------------------ skeleton --------------------------------- */
+
+.card--skeleton {
+  gap: var(--space-3);
+  min-height: 11rem;
+  box-shadow: var(--elev-1);
+}
+
+.skeleton {
+  height: 0.7rem;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--bg-inset) 25%,
+    var(--bg-hover) 37%,
+    var(--bg-inset) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s var(--ease-standard) infinite;
+}
+
+.skeleton--title {
+  height: 1.05rem;
+  width: 42%;
+}
+
+.skeleton--line {
+  width: 100%;
+}
+
+.skeleton--short {
+  width: 60%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/*
+ * "critical for 6m" — how long the current state has been true. Rendered only
+ * when the backend's event log actually saw the transition, so it never
+ * invents a duration it cannot know.
+ */
+.card__changed {
+  color: var(--sev-fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.card__changed[data-status='ok'] {
+  color: var(--fg-tertiary);
+}

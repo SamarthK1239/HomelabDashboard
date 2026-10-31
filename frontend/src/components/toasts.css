@@ -1,0 +1,108 @@
+.toasts {
+  position: fixed;
+  z-index: 60;
+  inset-block-end: max(var(--space-4), env(safe-area-inset-bottom));
+  inset-inline-end: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  width: min(24rem, calc(100vw - var(--space-4) * 2));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  pointer-events: auto;
+  border: 1px solid var(--sev-line);
+  border-inline-start: 3px solid var(--sev-solid);
+  border-radius: var(--radius-md);
+  background: var(--bg-overlay);
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(var(--glass-blur));
+  animation: toast-in var(--dur-slow) var(--ease-emphasized);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.97);
+  }
+}
+
+.toast__glyph {
+  color: var(--sev-fg);
+  flex: none;
+  padding-block-start: 0.05rem;
+}
+
+.toast__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.toast__title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-primary);
+  text-wrap: pretty;
+}
+
+.toast__detail {
+  font-size: var(--text-2xs);
+  color: var(--fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.toast__link {
+  justify-self: start;
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--accent-fg);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.toast__close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--fg-tertiary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.toast__close:hover {
+  color: var(--fg-primary);
+  background: var(--bg-hover);
+}
+
+/* The chrome fades on an idle kiosk, but an alert is the one thing that must
+   not: it is the reason someone would look up at the panel in the first place. */
+.app--chrome-hidden .toasts {
+  opacity: 1;
+}
+
+@media (max-width: 36rem) {
+  .toasts {
+    inset-inline: var(--space-3);
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

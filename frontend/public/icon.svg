@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Homelab Dashboard">
+  <!--
+    App mark. A pulse crossing an aperture ring: the ring is the "watching"
+    half, the trace is the "live" half. Drawn at 512 with generous padding so
+    it survives maskable cropping on Android home screens.
+  -->
+  <rect width="512" height="512" rx="112" fill="#111318" />
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#2b303c" stroke-width="20" />
+  <path
+    d="M256 106a150 150 0 0 1 150 150"
+    fill="none"
+    stroke="#6f9bf0"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+  <path
+    d="M138 268h52l30-72 40 136 30-64h84"
+    fill="none"
+    stroke="#e8eaf0"
+    stroke-width="24"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

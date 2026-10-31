@@ -1,0 +1,234 @@
+/*
+ * The glance layer.
+ *
+ * Everything here is sized in rem so the density axis rescales it wholesale:
+ * at `ambient` the verdict is readable across a room, at `compact` it shrinks
+ * out of the way of the grid.
+ */
+
+.summary {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(var(--sev-tint), var(--sev-tint)),
+    var(--bg-raised);
+  box-shadow: var(--elev-1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* A severity rail, not a border: colour arrives from one edge rather than
+   outlining the whole block, which would read as an error box even when OK. */
+.summary::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  background: var(--sev-solid);
+  opacity: var(--sev-rail-opacity, 1);
+}
+
+.summary[data-status='ok']::before {
+  opacity: 0.5;
+}
+
+.summary__verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.summary__glyph {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--radius-full);
+  color: var(--sev-fg);
+  background: var(--sev-tint-strong);
+  flex: none;
+}
+
+.summary[data-status='ok'] .summary__glyph {
+  background: color-mix(in oklab, var(--sev-solid) 14%, transparent);
+}
+
+.summary__text {
+  min-inline-size: 0;
+}
+
+.summary__headline {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--fg-primary);
+  text-wrap: balance;
+}
+
+.summary__tally {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+.summary__tally-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary__tally-dot {
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  border-radius: var(--radius-full);
+  background: var(--sev-solid);
+  flex: none;
+}
+
+.summary__tally-note {
+  color: var(--fg-tertiary);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  KPI tiles                                 */
+/* -------------------------------------------------------------------------- */
+
+.summary__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.kpi {
+  appearance: none;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  padding: var(--space-3);
+  text-align: start;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: inherit;
+  cursor: pointer;
+  min-inline-size: 0;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.kpi:hover {
+  border-color: var(--line-strong);
+  background: var(--bg-raised);
+}
+
+.kpi:active {
+  transform: translateY(1px);
+}
+
+/* Degraded KPIs get a left rail in their own severity colour. Healthy ones get
+   nothing at all — salience is spent only where it buys attention. */
+.kpi:not([data-status='ok']):not([data-status='unknown']) {
+  border-color: var(--sev-line);
+  background: linear-gradient(var(--sev-tint), var(--sev-tint)), var(--bg-inset);
+}
+
+.kpi__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--fg-tertiary);
+  min-inline-size: 0;
+}
+
+.kpi:not([data-status='ok']):not([data-status='unknown']) .kpi__head {
+  color: var(--sev-fg);
+}
+
+.kpi__label {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi__value {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--fg-primary);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.kpi__dash {
+  color: var(--fg-tertiary);
+}
+
+.kpi__detail {
+  font-size: var(--text-xs);
+  color: var(--fg-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi__bar {
+  display: block;
+  block-size: 3px;
+  border-radius: var(--radius-full);
+  background: var(--line-default);
+  overflow: hidden;
+  margin-block-start: var(--space-1);
+}
+
+.kpi__bar-fill {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--sev-solid);
+  transition: width var(--dur-slow) var(--ease-standard);
+}
+
+.kpi__spark {
+  margin-block-start: var(--space-1);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi__bar-fill {
+    transition: none;
+  }
+}
+
+/* Phones: the verdict matters, the tiles compress to two columns. */
+@media (max-width: 36rem) {
+  .summary {
+    padding: var(--space-4);
+  }
+
+  .summary__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary__headline {
+    font-size: var(--text-lg);
+  }
+}

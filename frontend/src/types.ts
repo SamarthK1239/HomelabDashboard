@@ -103,6 +103,32 @@ export interface HistorySeries {
   values: number[];
 }
 
+/** `GET /api/history/batch?metrics=a,b&window=...` */
+export interface HistoryBatch {
+  series: HistorySeries[];
+}
+
+/**
+ * One entry from `GET /api/events`: a collector changing status.
+ *
+ * The first sample a collector produces is not an event — there was no prior
+ * state to leave — so this log only ever describes genuine transitions.
+ */
+export interface StatusEvent {
+  collector: string;
+  from: Status;
+  to: Status;
+  /** Epoch seconds of the sample that caused the transition. */
+  timestamp: number;
+  /** The collector error at the moment of transition, if any. */
+  error: string | null;
+}
+
+/** `GET /api/events` */
+export interface EventLog {
+  events: StatusEvent[];
+}
+
 /** `GET /api/history/keys` */
 export interface HistoryKeys {
   keys: string[];

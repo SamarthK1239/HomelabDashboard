@@ -127,18 +127,18 @@ function resolveCoreSockets(perCore: readonly number[], sockets: readonly CpuSoc
 
 /** Cool neutral -> ok -> warn -> critical, mixed from the theme's own colours. */
 function heatColor(percent: number | null): string {
-  if (percent === null) return 'var(--surface-3)';
+  if (percent === null) return 'var(--bg-hover)';
   const clamped = Math.min(100, Math.max(0, percent));
   if (clamped <= BUSY_PERCENT) {
     const mix = Math.round((clamped / BUSY_PERCENT) * 100);
-    return `color-mix(in srgb, var(--status-ok) ${mix}%, var(--surface-3))`;
+    return `color-mix(in srgb, var(--sev-ok-solid) ${mix}%, var(--bg-hover))`;
   }
   if (clamped <= SATURATED_PERCENT) {
     const mix = Math.round(((clamped - BUSY_PERCENT) / (SATURATED_PERCENT - BUSY_PERCENT)) * 100);
-    return `color-mix(in srgb, var(--status-warn) ${mix}%, var(--status-ok))`;
+    return `color-mix(in srgb, var(--sev-warn-solid) ${mix}%, var(--sev-ok-solid))`;
   }
   const mix = Math.round(((clamped - SATURATED_PERCENT) / (100 - SATURATED_PERCENT)) * 100);
-  return `color-mix(in srgb, var(--status-critical) ${mix}%, var(--status-warn))`;
+  return `color-mix(in srgb, var(--sev-crit-solid) ${mix}%, var(--sev-warn-solid))`;
 }
 
 function heatLevel(percent: number | null): 'unknown' | 'idle' | 'busy' | 'saturated' {
@@ -157,9 +157,48 @@ function CoreCell({ cpu, percent }: { cpu: number; percent: number | null }) {
       data-level={heatLevel(percent)}
       style={{ backgroundColor: heatColor(percent) }}
       title={label}
-      aria-label={label}
+      // Individually labelled, the grid forces a screen-reader user through
+      // 88 list items to learn one fact. The grid as a whole carries a spoken
+      // summary instead -- see `describeCores` -- and the cells become
+      // decoration, which is what they are.
+      aria-hidden="true"
     />
   );
+}
+
+/**
+ * A spoken equivalent of the heatmap.
+ *
+ * The grid's entire purpose is pre-attentive: the eye finds the hot cells
+ * without reading any of them. The sentence below conveys the same three
+ * things a glance does -- how loaded the set is overall, whether the load is
+ * spread or concentrated, and which thread is the worst.
+ */
+function describeCores(cpus: readonly number[], percentFor: (cpu: number) => number | null): string {
+  let busiest = -1;
+  let busiestPercent = -1;
+  let busy = 0;
+  let read = 0;
+  let total = 0;
+
+  for (const cpu of cpus) {
+    const percent = percentFor(cpu);
+    if (percent === null) continue;
+    read += 1;
+    total += percent;
+    if (percent >= BUSY_PERCENT) busy += 1;
+    if (percent > busiestPercent) {
+      busiestPercent = percent;
+      busiest = cpu;
+    }
+  }
+
+  if (read === 0) return `${cpus.length} threads, no readings yet`;
+  const average = total / read;
+  if (busy === 0) {
+    return `${cpus.length} threads, all below ${BUSY_PERCENT}%, average ${formatPercent(average)}, busiest CPU ${busiest} at ${formatPercent(busiestPercent)}`;
+  }
+  return `${cpus.length} threads, ${busy} above ${BUSY_PERCENT}%, average ${formatPercent(average)}, busiest CPU ${busiest} at ${formatPercent(busiestPercent)}`;
 }
 
 function formatMhz(value: number | null): string {
@@ -353,7 +392,11 @@ export function CpuCard({ result, meta, refreshSeconds }: CardProps) {
                       <b>{formatPercent(group.percent)}</b>
                     </div>
                   ) : null}
-                  <ul className="sys-heat__grid">
+                  <ul
+                    className="sys-heat__grid"
+                    role="img"
+                    aria-label={`${group.label}: ${describeCores(group.cpus, cellPercent)}`}
+                  >
                     {group.cpus.map((cpu) => (
                       <CoreCell key={cpu} cpu={cpu} percent={cellPercent(cpu)} />
                     ))}

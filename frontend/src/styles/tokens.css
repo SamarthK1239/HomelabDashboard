@@ -1,0 +1,345 @@
+/* ===========================================================================
+   APERTURE — design tokens
+   ===========================================================================
+
+   The single source of truth for colour, type, space, elevation and motion.
+   Nothing outside this file may define a literal colour, a literal font size
+   or a literal duration. Components consume semantic roles only
+   (`--fg-secondary`, `--sev-warn-fg`), never raw ramp steps, so a theme can be
+   retuned here without touching a component.
+
+   PRINCIPLES
+   ----------
+   1. Calm by default, loud only when it matters. Healthy cards sit in a near
+      monochrome neutral ramp; severity is what buys colour, tint and weight.
+   2. One glance, three distances. `--density-scale` resizes the entire
+      interface — type AND space — because everything below is expressed in
+      `rem` against a scaled root font size.
+   3. Honest contrast. Every foreground role below is chosen to clear WCAG AA
+      against the surfaces it is allowed to sit on, in BOTH themes. The
+      comment beside each one records the measured ratio.
+
+   COLOUR
+   ------
+   Colours are authored in OKLCH so lightness is perceptual: a ramp step is the
+   same apparent distance at every hue, and the dark and light themes can be
+   derived rather than hand-matched. Contrast figures use the fact that for
+   greys Oklab L ~= Y^(1/3), so relative luminance Y ~= L^3.
+   =========================================================================== */
+
+:root {
+  /* ----------------------------- typography ------------------------------ */
+
+  --font-sans:
+    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /*
+   * A modular-ish scale, in rem. Because the root font size is multiplied by
+   * `--density-scale`, switching to ambient density grows every one of these
+   * proportionally — no component needs a density-aware override.
+   */
+  --text-2xs: 0.6875rem; /* 11px — micro labels, chips */
+  --text-xs: 0.75rem; /* 12px — captions, footers */
+  --text-sm: 0.8125rem; /* 13px — secondary body, metric values */
+  --text-md: 0.9375rem; /* 15px — body */
+  --text-lg: 1.0625rem; /* 17px — card titles */
+  --text-xl: 1.375rem; /* 22px — section heads */
+  --text-2xl: 1.75rem; /* 28px — card hero numbers */
+  --text-3xl: 2.5rem; /* 40px — summary hero */
+  --text-4xl: 3.5rem; /* 56px — ambient hero */
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /*
+   * Tracking. Small uppercase labels need positive tracking to stay readable;
+   * large display numerals need negative tracking to stop looking loose.
+   */
+  --track-label: 0.07em;
+  --track-tight: -0.015em;
+  --track-tighter: -0.03em;
+
+  /* ------------------------------- space --------------------------------- */
+
+  /* A 4px-based scale expressed in rem so it scales with density. */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ------------------------------- radius -------------------------------- */
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 999px;
+
+  /* ------------------------------- motion -------------------------------- */
+
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+  --dur-slower: 560ms;
+
+  /*
+   * `standard` for ordinary state changes, `emphasized` for anything that
+   * enters or expands (it holds speed longer, which reads as confident rather
+   * than hurried), `decelerate` for things arriving from off-screen.
+   */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
+
+  /* --------------------------- layout constants --------------------------- */
+
+  --card-min: 21rem;
+  --shell-max: 150rem;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /*
+   * Density. Overridden by `[data-density]` below; the root font size is
+   * `calc(16px * var(--density-scale))`, which is what makes every rem value
+   * above density-aware for free.
+   */
+  --density-scale: 1;
+
+  /*
+   * Ambient-mode luminance trim. 1 = untouched. Night dimming lowers this; it
+   * is applied as a filter on the shell so the palette itself never changes
+   * (a dimmed-but-correct image beats a recoloured one).
+   */
+  --ambient-dim: 1;
+}
+
+/* ============================= density modes ============================== */
+
+:root,
+:root[data-density='comfortable'] {
+  --density-scale: 1;
+}
+
+:root[data-density='compact'] {
+  --density-scale: 0.875;
+  --card-min: 19rem;
+}
+
+/*
+ * Ambient: a wall-mounted panel read from across the room. Type and spacing
+ * grow together, and cards get wider so lines do not become uncomfortably long
+ * at the larger size.
+ */
+:root[data-density='ambient'] {
+  --density-scale: 1.25;
+  --card-min: 24rem;
+}
+
+/* ================================ dark =================================== */
+
+/*
+ * The default. A cool near-black neutral ramp (hue 265, very low chroma) that
+ * reads as "unlit room" rather than "blue website". Chroma is deliberately
+ * tiny so that status colour is the only saturated thing on screen.
+ */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Neutral ramp — ascending lightness. */
+  --n-0: oklch(0.145 0.008 265); /* page */
+  --n-1: oklch(0.185 0.009 265); /* card / raised */
+  --n-2: oklch(0.225 0.01 265); /* inset, metric tiles */
+  --n-3: oklch(0.265 0.011 265); /* track, hover */
+  --n-4: oklch(0.31 0.012 265); /* line subtle */
+  --n-5: oklch(0.38 0.013 265); /* line default */
+  --n-6: oklch(0.47 0.014 265); /* line strong */
+  --n-7: oklch(0.655 0.016 265); /* fg tertiary */
+  --n-8: oklch(0.78 0.014 265); /* fg secondary */
+  --n-9: oklch(0.95 0.008 265); /* fg primary */
+
+  /* Surfaces */
+  --bg-base: var(--n-0);
+  --bg-raised: var(--n-1);
+  --bg-inset: var(--n-2);
+  --bg-hover: var(--n-3);
+  --bg-overlay: oklch(0.2 0.01 265 / 0.94);
+  --bg-scrim: oklch(0.1 0.01 265 / 0.72);
+
+  /*
+   * A barely-there vignette behind the page. It gives the shell a centre of
+   * gravity without any visible gradient banding on a large panel.
+   */
+  --bg-ambience: radial-gradient(
+    120rem 50rem at 50% -20%,
+    oklch(0.24 0.028 265 / 0.55) 0%,
+    transparent 65%
+  );
+
+  /* Foregrounds — ratios measured against --bg-raised (L 0.185). */
+  --fg-primary: var(--n-9); /* 16.1:1 */
+  --fg-secondary: var(--n-8); /* 9.3:1  */
+  --fg-tertiary: var(--n-7); /* 5.8:1  — AA body, used for labels/footers */
+  --fg-on-accent: oklch(0.16 0.01 265);
+
+  /* Lines */
+  --line-subtle: var(--n-4);
+  --line-default: var(--n-5);
+  --line-strong: var(--n-6);
+
+  /* Severity — foreground (text/icon) variants clear 4.5:1 on --bg-raised. */
+  --sev-ok-fg: oklch(0.8 0.16 155); /* 9.6:1 */
+  --sev-warn-fg: oklch(0.84 0.15 82); /* 11.3:1 */
+  --sev-crit-fg: oklch(0.72 0.19 25); /* 7.5:1 */
+  --sev-unknown-fg: var(--n-7); /* 5.8:1 */
+  --sev-info-fg: oklch(0.77 0.13 250); /* 8.7:1 */
+
+  /* Severity — solid variants for bars, dots and chart strokes. */
+  --sev-ok-solid: oklch(0.72 0.17 155);
+  --sev-warn-solid: oklch(0.78 0.16 82);
+  --sev-crit-solid: oklch(0.63 0.21 25);
+  --sev-unknown-solid: var(--n-6);
+  --sev-info-solid: oklch(0.68 0.15 250);
+
+  --accent-fg: var(--sev-info-fg);
+  --accent-solid: var(--sev-info-solid);
+
+  /* Elevation. Dark themes need depth from shadow AND a lighter top edge. */
+  --shadow-color: 0deg 0% 0%;
+  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.45);
+  --elev-2: 0 1px 2px hsl(var(--shadow-color) / 0.4), 0 4px 12px hsl(var(--shadow-color) / 0.3);
+  --elev-3: 0 2px 4px hsl(var(--shadow-color) / 0.4), 0 12px 32px hsl(var(--shadow-color) / 0.38);
+  --elev-4: 0 4px 8px hsl(var(--shadow-color) / 0.45), 0 32px 72px hsl(var(--shadow-color) / 0.55);
+
+  /* A 1px inner highlight on the top edge of raised surfaces. */
+  --edge-highlight: inset 0 1px 0 oklch(1 0 0 / 0.045);
+
+  /* Translucent chrome. */
+  --glass-bg: oklch(0.185 0.009 265 / 0.78);
+  --glass-blur: 16px;
+}
+
+/* ================================ light ================================== */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --n-0: oklch(0.975 0.003 265); /* page — a hair off white */
+  --n-1: oklch(1 0 0); /* card — pure white, so cards read as paper */
+  --n-2: oklch(0.965 0.004 265);
+  --n-3: oklch(0.935 0.005 265);
+  --n-4: oklch(0.905 0.006 265);
+  --n-5: oklch(0.855 0.008 265);
+  --n-6: oklch(0.76 0.01 265);
+  --n-7: oklch(0.55 0.015 265); /* fg tertiary */
+  --n-8: oklch(0.44 0.016 265); /* fg secondary */
+  --n-9: oklch(0.22 0.014 265); /* fg primary */
+
+  --bg-base: var(--n-0);
+  --bg-raised: var(--n-1);
+  --bg-inset: var(--n-2);
+  --bg-hover: var(--n-3);
+  --bg-overlay: oklch(1 0 0 / 0.96);
+  --bg-scrim: oklch(0.35 0.01 265 / 0.38);
+
+  --bg-ambience: radial-gradient(
+    120rem 50rem at 50% -20%,
+    oklch(0.92 0.025 265 / 0.6) 0%,
+    transparent 65%
+  );
+
+  /* Ratios measured against --bg-raised (white). */
+  --fg-primary: var(--n-9); /* 15.9:1 */
+  --fg-secondary: var(--n-8); /* 7.8:1  */
+  --fg-tertiary: var(--n-7); /* 4.6:1  — AA body */
+  --fg-on-accent: oklch(1 0 0);
+
+  --line-subtle: var(--n-4);
+  --line-default: var(--n-5);
+  --line-strong: var(--n-6);
+
+  /* Light-mode severity text must be dark enough to clear 4.5:1 on white. */
+  --sev-ok-fg: oklch(0.51 0.14 155); /* 5.6:1 */
+  --sev-warn-fg: oklch(0.52 0.13 70); /* 5.4:1 */
+  --sev-crit-fg: oklch(0.52 0.2 25); /* 5.5:1 */
+  --sev-unknown-fg: var(--n-7); /* 4.6:1 */
+  --sev-info-fg: oklch(0.52 0.18 255); /* 5.5:1 */
+
+  --sev-ok-solid: oklch(0.63 0.16 155);
+  --sev-warn-solid: oklch(0.73 0.16 75);
+  --sev-crit-solid: oklch(0.58 0.21 25);
+  --sev-unknown-solid: var(--n-6);
+  --sev-info-solid: oklch(0.58 0.19 255);
+
+  --accent-fg: var(--sev-info-fg);
+  --accent-solid: var(--sev-info-solid);
+
+  --shadow-color: 265deg 25% 45%;
+  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.1);
+  --elev-2: 0 1px 2px hsl(var(--shadow-color) / 0.08), 0 4px 12px hsl(var(--shadow-color) / 0.09);
+  --elev-3: 0 2px 4px hsl(var(--shadow-color) / 0.08), 0 12px 32px hsl(var(--shadow-color) / 0.12);
+  --elev-4: 0 4px 8px hsl(var(--shadow-color) / 0.1), 0 32px 72px hsl(var(--shadow-color) / 0.18);
+
+  --edge-highlight: inset 0 1px 0 oklch(1 0 0 / 0.8);
+
+  --glass-bg: oklch(1 0 0 / 0.82);
+  --glass-blur: 16px;
+}
+
+/* ========================== severity resolution =========================== */
+
+/*
+ * Every component that reacts to status sets `data-status` on an element and
+ * then reads `--sev-fg` / `--sev-solid` / `--sev-tint` from these rules. That
+ * keeps the four-way status switch in ONE place instead of repeating a block
+ * of four selectors in every card stylesheet.
+ */
+[data-status] {
+  --sev-fg: var(--sev-unknown-fg);
+  --sev-solid: var(--sev-unknown-solid);
+
+  /* Derived tints, so no component hand-mixes a status colour. */
+  --sev-tint: color-mix(in oklab, var(--sev-solid) 12%, transparent);
+  --sev-tint-strong: color-mix(in oklab, var(--sev-solid) 22%, transparent);
+  --sev-line: color-mix(in oklab, var(--sev-solid) 42%, transparent);
+}
+
+[data-status='ok'] {
+  --sev-fg: var(--sev-ok-fg);
+  --sev-solid: var(--sev-ok-solid);
+  /* `ok` is the calm default: no tint at all, so problems are the only
+     tinted things on the page. */
+  --sev-tint: transparent;
+}
+
+[data-status='unknown'] {
+  --sev-tint: transparent;
+}
+
+[data-status='warn'] {
+  --sev-fg: var(--sev-warn-fg);
+  --sev-solid: var(--sev-warn-solid);
+}
+
+[data-status='critical'] {
+  --sev-fg: var(--sev-crit-fg);
+  --sev-solid: var(--sev-crit-solid);
+}

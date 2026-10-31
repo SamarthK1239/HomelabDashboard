@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -23,6 +24,7 @@ from backend.collectors.base import (
 )
 from backend.collectors.gpu import _is_throttled
 from backend.collectors.llama import LlamaCollector
+from backend.collectors.power import PowerCollector, _RaplDomain
 from backend.config import Config, load_config
 from backend.sampler import Sampler
 from backend.store import Store
@@ -161,6 +163,128 @@ def test_empty_store_is_unknown_not_ok() -> None:
     assert Store().snapshot()["overall_status"] == "unknown"
 
 
+# --- status event log -------------------------------------------------------
+
+
+def test_first_sample_is_not_an_event() -> None:
+    """A restart must not manufacture an event for every collector it loads."""
+    store = Store()
+    store.record(CollectorResult(name="t", status=Status.CRITICAL, updated_at=time.time()))
+    assert store.events() == []
+
+
+def test_transitions_are_logged_newest_first() -> None:
+    store = Store()
+    now = time.time()
+    for index, status in enumerate((Status.OK, Status.WARN, Status.CRITICAL, Status.OK)):
+        store.record(CollectorResult(name="t", status=status, updated_at=now + index))
+
+    events = store.events()
+    assert [(e["from"], e["to"]) for e in events] == [
+        ("critical", "ok"),
+        ("warn", "critical"),
+        ("ok", "warn"),
+    ]
+    assert events[0]["timestamp"] == now + 3
+
+
+def test_repeated_status_does_not_log_an_event() -> None:
+    store = Store()
+    now = time.time()
+    for index in range(5):
+        store.record(CollectorResult(name="t", status=Status.OK, updated_at=now + index))
+    assert store.events() == []
+
+
+def test_event_log_is_bounded() -> None:
+    """The log is a ring buffer; a flapping collector cannot exhaust memory."""
+    from backend.store import MAX_EVENTS
+
+    store = Store()
+    now = time.time()
+    for index in range(MAX_EVENTS + 25):
+        status = Status.OK if index % 2 else Status.WARN
+        store.record(CollectorResult(name="t", status=status, updated_at=now + index))
+
+    assert len(store.events(limit=10_000)) == MAX_EVENTS
+
+
+def test_event_limit_returns_the_most_recent() -> None:
+    store = Store()
+    now = time.time()
+    for index in range(10):
+        status = Status.OK if index % 2 else Status.WARN
+        store.record(CollectorResult(name="t", status=status, updated_at=now + index))
+
+    recent = store.events(limit=2)
+    assert len(recent) == 2
+    assert recent[0]["timestamp"] == now + 9
+
+
+def test_event_carries_the_error_that_came_with_it() -> None:
+    store = Store()
+    now = time.time()
+    store.record(CollectorResult(name="t", status=Status.OK, updated_at=now))
+    store.record(
+        CollectorResult(
+            name="t", status=Status.CRITICAL, updated_at=now + 1, error="nvml unavailable"
+        )
+    )
+    assert store.events()[0]["error"] == "nvml unavailable"
+
+
+# --- HTTP contract ----------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def client() -> Any:
+    """A client against the real app with the sampler left stopped.
+
+    `TestClient` only runs the lifespan inside a `with` block, so constructing
+    it plainly gives the routing and validation layer without starting a
+    background sampler that would probe the host running the tests.
+    """
+    from fastapi.testclient import TestClient
+
+    from backend.app import create_app
+
+    return TestClient(create_app())
+
+
+def test_history_batch_returns_one_series_per_requested_metric(client: Any) -> None:
+    body = client.get("/api/history/batch?metrics=cpu.usage,memory.percent").json()
+    assert [s["metric"] for s in body["series"]] == ["cpu.usage", "memory.percent"]
+    # Nothing has been sampled, so the series are empty rather than missing:
+    # "no points yet" is the normal state, not a client error.
+    assert all(s["values"] == [] for s in body["series"])
+
+
+def test_history_batch_deduplicates_and_preserves_order(client: Any) -> None:
+    body = client.get("/api/history/batch?metrics=b.x,a.y,b.x").json()
+    assert [s["metric"] for s in body["series"]] == ["b.x", "a.y"]
+
+
+def test_history_batch_rejects_an_empty_metric_list(client: Any) -> None:
+    assert client.get("/api/history/batch?metrics=").status_code == 422
+    assert client.get("/api/history/batch?metrics=,,").status_code == 422
+
+
+def test_history_batch_is_bounded(client: Any) -> None:
+    from backend.app import MAX_BATCH_METRICS
+
+    ok = ",".join(f"m{i}.v" for i in range(MAX_BATCH_METRICS))
+    assert client.get(f"/api/history/batch?metrics={ok}").status_code == 200
+
+    too_many = ",".join(f"m{i}.v" for i in range(MAX_BATCH_METRICS + 1))
+    assert client.get(f"/api/history/batch?metrics={too_many}").status_code == 422
+
+
+def test_events_endpoint_starts_empty_and_validates_its_limit(client: Any) -> None:
+    assert client.get("/api/events").json() == {"events": []}
+    assert client.get("/api/events?limit=0").status_code == 422
+    assert client.get("/api/events?limit=501").status_code == 422
+
+
 # --- registry ---------------------------------------------------------------
 
 
@@ -174,6 +298,7 @@ def test_registry_discovers_all_builtin_collectors() -> None:
         "gpu",
         "docker",
         "llama",
+        "power",
         "updates",
     }
 
@@ -323,3 +448,99 @@ def test_never_policy_skips_slots_even_when_busy() -> None:
 
 def test_invalid_policy_falls_back_to_auto() -> None:
     assert _llama("nonsense").slots_policy == "auto"
+
+
+# --- power accounting --------------------------------------------------------
+
+
+def _domain(name: str, parent: str | None = None, max_range: int | None = 262_143_328_850):
+    domain = _RaplDomain.__new__(_RaplDomain)
+    domain.path = Path("/nonexistent")
+    domain.name = name
+    domain.parent = parent
+    domain.max_range = max_range
+    domain.error = None
+    return domain
+
+
+def test_energy_delta_becomes_average_watts() -> None:
+    # 30 joules over 2 seconds is 15 W, whatever the absolute counter value.
+    watts = PowerCollector._watts_between(
+        _domain("package-0"), (100.0, 1_000_000), (102.0, 31_000_000)
+    )
+    assert watts == 15.0
+
+
+def test_wrapped_energy_counter_is_recovered_not_reported_as_negative() -> None:
+    """RAPL counters wrap at max_energy_range_uj; a wrap is not a power drop."""
+    domain = _domain("package-0", max_range=1_000_000_000)
+    watts = PowerCollector._watts_between(domain, (0.0, 999_000_000), (1.0, 9_000_000))
+    assert watts == 10.0
+
+
+def test_counter_reset_is_discarded_rather_than_spiking() -> None:
+    """A suspend or driver reload zeroes the counter mid-range.
+
+    Treated as a wrap, a reset from early in the range implies almost the whole
+    range of energy in one interval -- far more than any real hardware draws, so
+    the interval is dropped instead.
+    """
+    domain = _domain("package-0", max_range=1_000_000_000)
+    assert PowerCollector._watts_between(domain, (0.0, 100_000_000), (1.0, 10)) is None
+
+
+def test_wrap_without_a_known_range_is_unmeasurable() -> None:
+    domain = _domain("package-0", max_range=None)
+    assert PowerCollector._watts_between(domain, (0.0, 500), (1.0, 100)) is None
+
+
+def test_non_advancing_clock_never_divides_by_zero() -> None:
+    assert PowerCollector._watts_between(_domain("dram"), (5.0, 0), (5.0, 1_000)) is None
+
+
+def test_platform_domain_supersedes_its_packages() -> None:
+    """psys already includes the CPU packages, so summing both double-counts."""
+    components = [
+        {"category": "platform", "watts": 180.0},
+        {"category": "cpu", "watts": 95.0},
+        {"category": "dram", "watts": 20.0},
+    ]
+    kept = PowerCollector._deduplicate(components)
+    assert [c["category"] for c in kept] == ["platform", "dram"]
+
+
+def test_package_domains_are_kept_when_there_is_no_platform_domain() -> None:
+    components = [{"category": "cpu", "watts": 95.0}, {"category": "dram", "watts": 20.0}]
+    assert PowerCollector._deduplicate(components) == components
+
+
+def test_power_without_any_sensor_is_unknown_not_ok() -> None:
+    """A card showing only the configured baseline has measured nothing."""
+    collector = PowerCollector(make_config(power={"baseline_watts": 60.0}))
+    status = collector.status_for(
+        {"total_watts": 60.0, "measured_source_count": 0, "by_category": {"baseline": 60.0}}
+    )
+    assert status is Status.UNKNOWN
+
+
+def test_power_thresholds_are_off_until_configured() -> None:
+    collector = PowerCollector(make_config())
+    assert collector.status_for({"total_watts": 5000.0, "measured_source_count": 2}) is Status.OK
+
+
+def test_configured_power_thresholds_classify_the_total() -> None:
+    config = make_config(thresholds={"power_warn": 400.0, "power_critical": 700.0})
+    collector = PowerCollector(config)
+    assert collector.status_for({"total_watts": 200.0, "measured_source_count": 2}) is Status.OK
+    assert collector.status_for({"total_watts": 450.0, "measured_source_count": 2}) is Status.WARN
+    assert (
+        collector.status_for({"total_watts": 900.0, "measured_source_count": 2})
+        is Status.CRITICAL
+    )
+
+
+def test_implausible_psu_efficiency_falls_back_to_unity() -> None:
+    # Otherwise the "at the wall" figure comes out below the parts it sums.
+    assert PowerCollector(make_config(power={"psu_efficiency": 0.0})).meta()["psu_efficiency"] == 1.0
+    assert PowerCollector(make_config(power={"psu_efficiency": 1.8})).meta()["psu_efficiency"] == 1.0
+    assert PowerCollector(make_config(power={"psu_efficiency": 0.9})).meta()["psu_efficiency"] == 0.9

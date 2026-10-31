@@ -1,0 +1,92 @@
+/* ---------------------------------------------------------------------------
+   Status badge
+   ---------------------------------------------------------------------------
+   Colour is resolved by the `[data-status]` rules in tokens.css; this sheet
+   only draws. Shape is carried by the icon, never by the fill, so the badge is
+   readable in greyscale.
+   --------------------------------------------------------------------------- */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--sev-fg);
+  white-space: nowrap;
+  transition: color var(--dur-base) var(--ease-standard);
+}
+
+.status-badge__label {
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------- pill --------------------------------- */
+
+.status-badge--pill {
+  padding: 0.15em 0.55em 0.15em 0.4em;
+  border-radius: var(--radius-full);
+  background: var(--sev-tint-strong);
+  border: 1px solid var(--sev-line);
+}
+
+/*
+ * `ok` deliberately sheds its fill and border. A healthy system should be
+ * quiet: if every card wore a green pill, the one amber pill that matters
+ * would have to compete with eight others for attention.
+ */
+.status-badge--pill[data-status='ok'],
+.status-badge--pill[data-status='unknown'] {
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 0.15em;
+}
+
+/* --------------------------------- glyph --------------------------------- */
+
+.status-badge--glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --------------------------------- sizes --------------------------------- */
+
+.status-badge--sm {
+  font-size: var(--text-2xs);
+}
+
+.status-badge--md {
+  font-size: var(--text-xs);
+}
+
+.status-badge--lg {
+  font-size: var(--text-sm);
+  gap: 0.4em;
+}
+
+.status-badge--lg.status-badge--pill {
+  padding: 0.25em 0.7em 0.25em 0.5em;
+}
+
+/* --------------------------------- pulse --------------------------------- */
+
+/*
+ * Liveness. A slow breathing glyph is the only animation allowed to run
+ * forever; everything else in the system is a transition with an end.
+ */
+.status-badge--pulse svg {
+  animation: status-breathe 2.4s var(--ease-standard) infinite;
+}
+
+@keyframes status-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+}

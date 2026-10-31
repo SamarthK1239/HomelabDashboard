@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
         "gpu": 2.0,
         "uptime": 2.0,
         "llama": 5.0,
+        "power": 5.0,
         "docker": 10.0,
         "disk": 15.0,
         "updates": 3600.0,
@@ -37,6 +38,10 @@ DEFAULTS: dict[str, Any] = {
     },
     "docker": {"include_stats": True},
     "disk": {"mounts": []},
+    "power": {
+        "baseline_watts": 0.0,
+        "psu_efficiency": 1.0,
+    },
     "updates": {"stale_after_hours": 24},
     "thresholds": {
         "cpu_warn": 80.0,
@@ -53,6 +58,11 @@ DEFAULTS: dict[str, Any] = {
         "gpu_temp_critical": 88.0,
         "cpu_temp_warn": 80.0,
         "cpu_temp_critical": 90.0,
+        # Watts. Zero on both disables the power card's thresholds entirely,
+        # which is the right default: a sensible ceiling depends on the PSU and
+        # the hardware in the box, not on anything this code can infer.
+        "power_warn": 0.0,
+        "power_critical": 0.0,
         "updates_warn": 20,
         "updates_critical": 50,
         "security_updates_critical": 1,

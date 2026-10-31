@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 
 import {
   EM_DASH,
@@ -11,13 +11,29 @@ import {
 } from '../format';
 import { Card } from './Card';
 import type { CardProps } from './cards/types';
+import './generic-card.css';
 
-/** How deep to recurse before collapsing an object into a summary. */
-const MAX_DEPTH = 3;
-/** How many entries of an object array to render in full. */
-const MAX_ITEMS = 6;
-/** Above this, a primitive array is summarised rather than listed. */
-const MAX_INLINE_VALUES = 10;
+/**
+ * How much of a payload to render.
+ *
+ * A card is a glance and must stay a glance, so it collapses deep nesting and
+ * long lists. The detail sheet is the opposite — it exists precisely to show
+ * everything — so the limits are a context rather than constants, and the
+ * sheet simply raises them for the same renderer.
+ */
+export interface DataLimits {
+  /** How deep to recurse before collapsing an object into a summary. */
+  maxDepth: number;
+  /** How many entries of an object array to render in full. */
+  maxItems: number;
+  /** Above this, a primitive array is summarised rather than listed. */
+  maxInline: number;
+}
+
+export const CARD_LIMITS: DataLimits = { maxDepth: 3, maxItems: 6, maxInline: 10 };
+export const DETAIL_LIMITS: DataLimits = { maxDepth: 7, maxItems: 200, maxInline: 64 };
+
+const LimitsContext = createContext<DataLimits>(CARD_LIMITS);
 
 export interface GenericCardProps extends CardProps {
   /** Card heading; defaults to a humanised collector name. */
@@ -101,6 +117,8 @@ function ArrayRow({
   depth: number;
   path: readonly string[];
 }) {
+  const { maxDepth: MAX_DEPTH, maxItems: MAX_ITEMS, maxInline: MAX_INLINE_VALUES } =
+    useContext(LimitsContext);
   const label = humanizeKey(name);
 
   if (items.length === 0) {
@@ -176,6 +194,7 @@ function Row({
   depth: number;
   path: readonly string[];
 }) {
+  const { maxDepth: MAX_DEPTH } = useContext(LimitsContext);
   const label = humanizeKey(name);
 
   if (Array.isArray(value)) {
@@ -260,6 +279,27 @@ export function GenericCard({ result, title }: GenericCardProps) {
         <ObjectRows value={data} depth={0} path={[result.name]} />
       )}
     </Card>
+  );
+}
+
+/**
+ * The recursive key/value renderer on its own, for consumers that are not a
+ * card — chiefly the detail sheet, which raises the limits to show a payload
+ * in full.
+ */
+export function CollectorData({
+  data,
+  path,
+  limits = CARD_LIMITS,
+}: {
+  data: Record<string, unknown>;
+  path: readonly string[];
+  limits?: DataLimits;
+}) {
+  return (
+    <LimitsContext.Provider value={limits}>
+      <ObjectRows value={data} depth={0} path={path} />
+    </LimitsContext.Provider>
   );
 }
 

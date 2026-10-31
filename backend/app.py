@@ -25,6 +25,11 @@ log = logging.getLogger(__name__)
 
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
+# Upper bound on `/api/history/batch`. Generous enough for every view the UI
+# has (the widest is the detail sheet), small enough that a stray request
+# cannot ask the store to serialise its entire key space in one go.
+MAX_BATCH_METRICS = 24
+
 
 def create_app(config: Config | None = None) -> FastAPI:
     config = config or load_config()
@@ -75,9 +80,52 @@ def create_app(config: Config | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         return store.history(metric, window)
 
+    @app.get("/api/history/batch")
+    async def history_batch(
+        metrics: str = Query(
+            ...,
+            description="Comma-separated series keys, e.g. cpu.usage,memory.percent",
+        ),
+        window: int | None = Query(None, ge=1, description="Seconds of history"),
+    ) -> dict[str, Any]:
+        """Several series in one request.
+
+        The summary strip and the detail sheet each want a handful of
+        sparklines at once. Fetching them one at a time turned a single glance
+        into six round trips on every poll -- noticeable on a phone over
+        Tailscale, and pointless when the store can answer them together.
+
+        Unknown keys come back as empty series rather than an error: history is
+        in-memory and starts empty after a restart, so "no points yet" is the
+        normal state for the first few seconds, not a client mistake.
+        """
+        requested = [m.strip() for m in metrics.split(",")]
+        unique = list(dict.fromkeys(m for m in requested if m))
+        if not unique:
+            raise HTTPException(status_code=422, detail="metrics must not be empty")
+        if len(unique) > MAX_BATCH_METRICS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"at most {MAX_BATCH_METRICS} metrics per request",
+            )
+        return {"series": [store.history(metric, window) for metric in unique]}
+
     @app.get("/api/history/keys")
     async def history_keys() -> dict[str, Any]:
         return {"keys": store.history_keys()}
+
+    @app.get("/api/events")
+    async def events(
+        limit: int = Query(50, ge=1, le=500, description="Most recent N transitions"),
+    ) -> dict[str, Any]:
+        """Recent collector status transitions, newest first.
+
+        The snapshot says what is wrong *now*; this says what changed and when.
+        Without it a card that flapped critical for ninety seconds at 04:00 and
+        recovered leaves no trace at all, which is exactly the event an
+        operator most wants to know about.
+        """
+        return {"events": store.events(limit)}
 
     _mount_frontend(app)
     return app

@@ -1,0 +1,143 @@
+/* ---------------------------------------------------------------------------
+   Generic key/value rendering
+   ---------------------------------------------------------------------------
+   Used by `GenericCard` for collectors that have no bespoke card yet. It has
+   to look deliberate rather than like a fallback, because a brand new backend
+   collector is visible here before anyone designs for it.
+   --------------------------------------------------------------------------- */
+
+.kv {
+  display: flex;
+  flex-direction: column;
+}
+
+.kv-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 42%) 1fr;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line-subtle) 55%, transparent);
+}
+
+.kv-row:last-child {
+  border-bottom: none;
+}
+
+/* A narrow card cannot afford two columns; stack instead of truncating. */
+@container card (max-width: 20rem) {
+  .kv-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .kv-value {
+    text-align: left;
+  }
+
+  .kv-chips {
+    justify-content: flex-start;
+  }
+}
+
+.kv-key {
+  color: var(--fg-tertiary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.kv-value {
+  color: var(--fg-primary);
+  font-size: var(--text-sm);
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Identifier-shaped values (paths, hashes, names) get the mono face; plain
+   numbers stay in the sans face, where the figures are already tabular. */
+.kv-value--ident {
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-sm) * 0.95);
+}
+
+.kv-value--muted {
+  color: var(--fg-tertiary);
+}
+
+.kv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.kv-chip {
+  background: var(--bg-inset);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0.05rem 0.35rem;
+  font-size: var(--text-2xs);
+  color: var(--fg-secondary);
+}
+
+.kv-chip--more {
+  color: var(--fg-tertiary);
+  font-style: italic;
+}
+
+.kv-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line-subtle) 55%, transparent);
+}
+
+.kv-group:last-child {
+  border-bottom: none;
+}
+
+.kv-group-key {
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+.kv-group-body {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-subtle);
+}
+
+.kv-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kv-item {
+  background: var(--bg-inset);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.kv-item-title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-primary);
+  margin-bottom: 0.125rem;
+  overflow-wrap: anywhere;
+}
+
+.kv-item--more {
+  background: none;
+  border: none;
+  color: var(--fg-tertiary);
+  font-size: var(--text-xs);
+  font-style: italic;
+  padding: 0;
+}

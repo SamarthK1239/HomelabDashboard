@@ -1,0 +1,79 @@
+.attention {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.attention__title {
+  margin: 0;
+  color: var(--fg-tertiary);
+}
+
+.attention__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-2);
+}
+
+.attention__item {
+  min-inline-size: 0;
+}
+
+.attention__button {
+  appearance: none;
+  inline-size: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  border: 1px solid var(--sev-line);
+  border-inline-start-width: 3px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(var(--sev-tint), var(--sev-tint)), var(--bg-raised);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.attention__button:hover {
+  background: linear-gradient(var(--sev-tint-strong), var(--sev-tint-strong)), var(--bg-raised);
+}
+
+.attention__button:active {
+  transform: translateY(1px);
+}
+
+.attention__glyph {
+  display: grid;
+  place-items: center;
+  color: var(--sev-fg);
+  flex: none;
+  padding-block-start: 0.1em;
+}
+
+.attention__body {
+  display: grid;
+  gap: 0.1rem;
+  min-inline-size: 0;
+}
+
+.attention__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.attention__reason {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--fg-secondary);
+  text-wrap: pretty;
+}

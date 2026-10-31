@@ -1,0 +1,87 @@
+/* ---------------------------------------------------------------------------
+   Sparklines
+   --------------------------------------------------------------------------- */
+
+.sparkline {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Frames the plot area of a fixed-scale chart. Without it, a series resting
+ * near 0 on a 0-100 axis looks like a chart that failed to draw rather than a
+ * machine that is idle.
+ */
+.sparkline--bounded {
+  border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.sparkline--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-inset) 0 0.375rem,
+    transparent 0.375rem 0.75rem
+  );
+  border-radius: var(--radius-sm);
+}
+
+.sparkline .u-wrap {
+  cursor: crosshair;
+}
+
+/* uPlot draws its own cursor lines; these keep them on-theme. */
+.sparkline .u-cursor-x,
+.sparkline .u-cursor-y {
+  border-color: color-mix(in oklab, var(--fg-primary) 45%, transparent) !important;
+}
+
+.sparkline .u-cursor-pt {
+  border-color: var(--bg-raised) !important;
+}
+
+/* ------------------------------- tooltip --------------------------------- */
+
+/*
+ * A shared readout rather than a per-chart tooltip. Every sparkline on the
+ * page is cursor-synchronised, so hovering one shows the value of that moment
+ * on all of them; the floating label only has to name the value under the
+ * pointer.
+ */
+.spark-tip {
+  position: absolute;
+  top: 0;
+  z-index: 5;
+  transform: translate(-50%, -115%);
+  padding: 0.1rem 0.4rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-primary);
+  background: var(--bg-overlay);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--elev-2);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.spark-tip__time {
+  color: var(--fg-tertiary);
+  font-weight: var(--weight-regular);
+  margin-left: 0.3rem;
+}
+
+/* --------------------------- detail-sheet charts -------------------------- */
+
+/* Axes and legends appear only in the detail sheet, where there is room for
+   them to be read rather than merely perceived. */
+.sparkline--detail .u-axis {
+  color: var(--fg-tertiary);
+}

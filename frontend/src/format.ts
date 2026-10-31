@@ -104,6 +104,10 @@ export function humanizeKey(key: string): string {
     .replace(/_(bytes|percent|pct|seconds|secs|ms|mhz|watts|celsius|c|iso|human)$/i, '')
     .replace(/[_-]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    // Hardware is enumerated without a separator -- `socket0`, `gpu1`, `node0`.
+    // Only these known index prefixes are split, because a blanket
+    // letter-to-digit rule would also mangle names like `ipv4`.
+    .replace(/\b(socket|gpu|node|core|cpu|slot|disk)(\d+)\b/gi, '$1 $2')
     .trim();
   const text = cleaned.length > 0 ? cleaned : key.replace(/[_-]+/g, ' ');
   return text

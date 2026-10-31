@@ -3,9 +3,9 @@
 A read-only monitoring dashboard for an AI/homelab server. It runs on the machine
 it watches and is reached over Tailscale.
 
-Monitors llama.cpp, Docker, NVIDIA GPUs, both CPU sockets, memory, disks, uptime,
-and pending system updates — and is built so adding a ninth panel means adding one
-file.
+Monitors llama.cpp, Docker, NVIDIA GPUs, both CPU sockets, memory, disks, system
+power draw, uptime and pending system updates — and is built so adding a tenth
+panel means adding one file.
 
 ## What it shows
 
@@ -16,7 +16,8 @@ file.
 | **CPU** | Per-socket utilization, frequency and package temperature for both Xeons, an 88-core heatmap, and load normalized per core |
 | **Memory** | Used/available/cached, swap, and a per-NUMA-node breakdown |
 | **Disks** | Usage and inodes per mount, plus per-disk read/write throughput |
-| **Docker** | Every container's state, health, uptime, restart count, CPU and memory |
+| **Docker** | Every container's state, health, uptime, restart count, CPU and memory. The list shows three containers and scrolls |
+| **Power** | Estimated total system draw, assembled from Intel RAPL (CPU + DRAM), NVML (per-GPU board power) and a configurable baseline, with any source it could not read named explicitly |
 | **Uptime** | Boot time, uptime, load averages, reboot-required flag |
 | **Updates** | Pending and security counts, per-package detail, and the age of the apt cache |
 
@@ -47,6 +48,22 @@ its KV cache, so this server sits at ~98% VRAM whenever the model is loaded. The
 conventional 85/95 ceilings would pin the card to CRITICAL permanently and train
 you to ignore it, so the defaults only fire on genuine exhaustion. Temperature and
 throttling carry the real signal.
+
+**Power is an explicit estimate, and says what it is missing.** No sensor reports
+"total watts", so the power card sums the ones that exist: RAPL for CPU and DRAM,
+NVML for each GPU, and a configurable baseline for hardware with no sensor at all.
+Every source it could *not* read is listed on the card by name and reason, because
+a total that silently excludes both CPU sockets is worse than one that admits it
+does. Reading RAPL needs root ([CVE-2020-8694] made `energy_uj` mode 0400) and this
+service runs unprivileged, so the CPU terms report as unavailable until a udev rule
+grants read access — see `[power]` in `config.example.toml`.
+
+[CVE-2020-8694]: https://nvd.nist.gov/vuln/detail/CVE-2020-8694
+
+**The interface is designed for three viewing distances.** See
+[frontend/DESIGN.md](frontend/DESIGN.md) for the design language, which covers the
+density axis (compact / comfortable / ambient), the severity-buys-salience colour
+model, and the glance layer that sits above the cards.
 
 **One slow collector cannot stall the others.** Each runs on its own cadence with
 its own timeout, and a collector that raises degrades its own card while every
@@ -167,12 +184,26 @@ The backend is usable on its own if you want to script against it.
 |---|---|
 | `GET /api/snapshot` | Every collector's latest reading, status, and age |
 | `GET /api/history?metric=cpu.usage&window=3600` | A rolling series for sparklines |
+| `GET /api/history/batch?metrics=cpu.usage,memory.percent` | Up to 24 series in one round trip |
 | `GET /api/history/keys` | Every available series key |
+| `GET /api/events?limit=50` | Recent collector status transitions, newest first |
 | `GET /api/meta` | Static facts: CPU model, GPU names, total RAM, intervals |
 | `GET /api/health` | The dashboard's own liveness |
 
 History lives in memory only, in a rolling window (default one hour). Restarting
 the service clears it — the documented trade-off for having no database.
+
+`/api/history/batch` exists because the UI draws a dozen sparklines at once;
+fetching them individually turned one refresh into a dozen requests. Unknown keys
+come back as empty series rather than errors, so one retired metric cannot fail a
+whole batch.
+
+`/api/events` is the other half of the story the snapshot cannot tell. The
+snapshot says what is wrong *now*; the event log says what *changed* and when, so
+a card that flapped critical for ninety seconds at 04:00 and recovered still
+leaves a trace. It is a 250-entry ring buffer, also memory-only, and a
+collector's first sample is deliberately not an event — otherwise every restart
+would manufacture nine transitions that never happened.
 
 ## Adding a collector
 
@@ -253,6 +284,10 @@ backend/
     base.py         Collector protocol, Status, registry
     cpu.py memory.py disk.py uptime.py
     gpu.py docker_containers.py llama.py updates.py
+    power.py
 frontend/           Vite + React + TypeScript
+  DESIGN.md         the design language, in full
+  src/styles/       tokens.css is the foundation everything reads
+  src/components/   shared primitives + one card per collector
 deploy/             systemd unit + installer
 ```

@@ -6,6 +6,7 @@ import { DockerCard } from './DockerCard';
 import { GpuCard } from './GpuCard';
 import { LlamaCard } from './LlamaCard';
 import { MemoryCard } from './MemoryCard';
+import { PowerCard } from './PowerCard';
 import { UpdatesCard } from './UpdatesCard';
 import { UptimeCard } from './UptimeCard';
 import type { CardProps } from './types';
@@ -47,7 +48,7 @@ export type { CardProps } from './types';
  *    anyone writes a card for it.
  *
  * Keep keys lowercase and exactly equal to the backend collector name:
- * cpu, memory, disk, docker, gpu, llama, updates, uptime.
+ * cpu, memory, disk, docker, gpu, llama, power, updates, uptime.
  */
 export const CARD_REGISTRY: Record<string, ComponentType<CardProps>> = {
   llama: LlamaCard,
@@ -56,6 +57,7 @@ export const CARD_REGISTRY: Record<string, ComponentType<CardProps>> = {
   memory: MemoryCard,
   disk: DiskCard,
   docker: DockerCard,
+  power: PowerCard,
   uptime: UptimeCard,
   updates: UpdatesCard,
 };
@@ -72,6 +74,7 @@ export const COLLECTOR_ORDER: readonly string[] = [
   'memory',
   'disk',
   'docker',
+  'power',
   'uptime',
   'updates',
 ];

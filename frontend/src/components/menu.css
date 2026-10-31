@@ -1,0 +1,93 @@
+/* ---------------------------------------------------------------------------
+   Overflow menu
+   --------------------------------------------------------------------------- */
+
+.menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu__list {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  z-index: 60;
+  min-width: 12rem;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-3), var(--edge-highlight);
+  backdrop-filter: blur(var(--glass-blur));
+  animation: menu-in var(--dur-fast) var(--ease-emphasized);
+  transform-origin: top var(--menu-origin, right);
+}
+
+.menu__list--end {
+  right: 0;
+  --menu-origin: right;
+}
+
+.menu__list--start {
+  left: 0;
+  --menu-origin: left;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-0.25rem);
+  }
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--fg-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-instant) var(--ease-standard),
+    color var(--dur-instant) var(--ease-standard);
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item:focus-visible {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.menu__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menu__item--danger {
+  color: var(--sev-crit-fg);
+}
+
+.menu__item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu__item-hint {
+  color: var(--fg-tertiary);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.menu__separator {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--line-subtle);
+}
